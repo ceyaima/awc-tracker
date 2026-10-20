@@ -1,0 +1,22 @@
+:root {
+  /* Catppuccin Mocha Refined */
+  --bg: #1e1e2e;
+  --panel: #181825;
+  --card: #24273a;
+  --crust: #11111b;
+  --border: #363a4f;
+  --border-active: #585b70;
+  --text-main: #cdd6f4;
+  --text-muted: #a6adc8;
+
+  /* Cooler, Frosty Pastels */
+  --retro-blue: #89b4fa;
+  --retro-lavender: #b4befe;
+  --retro-mauve: #cba6f7;
+  --retro-cyan: #74c7ec;    /* Cool Frost Sapphire */
+  --retro-teal: #89dceb;    /* Cool Icy Sky */
+  --retro-green: #8bd5ca;   /* Cool Mint / Sage */
+  --retro-peach: #fab387;
+  --retro-red: #f38ba8;
+  --retro-amber: #cba6f7;
+}

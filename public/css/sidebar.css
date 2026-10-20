@@ -1,0 +1,235 @@
+.todo-sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 150;
+  display: flex;
+}
+
+.todo-sidebar {
+  width: 440px;
+  max-width: 90vw;
+  height: 100%;
+  background: var(--panel);
+  border-right: 2px solid var(--border);
+  box-shadow: 6px 0px 0px var(--crust);
+  display: flex;
+  flex-direction: column;
+  padding: 24px 20px;
+  overflow-x: hidden;
+  animation: slideIn 0.18s ease-out;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+.todo-sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+}
+
+.todo-sidebar-title {
+  margin: 0;
+  font-size: 17px;
+  color: var(--retro-red);
+  text-transform: uppercase;
+}
+
+.todo-view-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.todo-tab-btn {
+  font-size: 10px;
+  text-align: center;
+  padding: 6px 4px;
+}
+
+/* ASCII Tree Layout */
+.ascii-tree {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+  width: 100%;
+}
+
+.tree-root {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--retro-cyan);
+  margin-bottom: 10px;
+}
+
+.tree-challenge-node {
+  margin-bottom: 14px;
+  width: 100%;
+}
+
+.tree-challenge-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-main);
+  font-weight: 700;
+  width: 100%;
+}
+
+.tree-glyph {
+  color: var(--retro-mauve);
+  font-family: monospace;
+  flex-shrink: 0;
+}
+
+.tree-challenge-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  color: var(--text-main);
+}
+
+.tree-add-inline {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--retro-cyan);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 2px 6px;
+  flex-shrink: 0;
+}
+.tree-add-inline:hover {
+  border-color: var(--retro-cyan);
+  background: rgba(116, 199, 236, 0.15);
+}
+
+.tree-anime-container {
+  margin-left: 18px;
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: calc(100% - 18px);
+}
+
+.tree-anime-node {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.tree-anime-glyph {
+  color: var(--text-muted);
+  font-family: monospace;
+  flex-shrink: 0;
+}
+
+.tree-anime-card {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--crust);
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.tree-anime-cover {
+  width: 32px;
+  height: 44px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  background: #000;
+  flex-shrink: 0;
+}
+
+.tree-anime-cover-placeholder {
+  width: 32px;
+  height: 44px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.tree-anime-link, .tree-anime-link:visited {
+  text-decoration: none;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  display: block;
+  color: var(--text-main);
+}
+
+.tree-anime-title {
+  flex: 1;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-main) !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.tree-anime-link:hover .tree-anime-title {
+  color: var(--retro-cyan) !important;
+  text-decoration: underline;
+}
+
+.tree-del-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 4px;
+  flex-shrink: 0;
+}
+.tree-del-btn:hover { color: var(--retro-red); }
+
+/* AniList Live Search Results */
+.anime-search-results {
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  background: var(--crust);
+  margin-top: 6px;
+}
+
+.anime-search-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+}
+.anime-search-item:hover {
+  background: var(--card);
+}
+
+.anime-search-thumb {
+  width: 28px;
+  height: 38px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+}

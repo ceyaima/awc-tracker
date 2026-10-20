@@ -1,0 +1,135 @@
+/* Tactile Panels & Buttons */
+.retro-box {
+  background: var(--panel);
+  border: 2px solid var(--border);
+  box-shadow: 4px 4px 0px var(--crust);
+}
+
+.retro-btn {
+  background: var(--card);
+  border: 2px solid var(--border);
+  color: var(--text-main);
+  box-shadow: 3px 3px 0px var(--crust);
+  cursor: pointer;
+  transition: all 0.1s ease-in-out;
+}
+
+.retro-btn:hover {
+  border-color: var(--retro-lavender);
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0px var(--crust);
+}
+
+.retro-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px var(--crust);
+}
+
+.retro-btn.active {
+  background: var(--retro-mauve);
+  color: var(--crust);
+  border-color: var(--retro-mauve);
+  font-weight: 700;
+  box-shadow: inset 2px 2px 0px rgba(0, 0, 0, 0.25);
+}
+
+.retro-btn-danger {
+  border-color: var(--retro-red) !important;
+  color: var(--retro-red) !important;
+}
+
+.retro-btn-danger:hover {
+  background: rgba(243, 139, 168, 0.15) !important;
+  border-color: #f7a8b8 !important;
+}
+
+.btn-sm {
+  padding: 5px 10px;
+  font-size: 11px;
+}
+
+.btn-icon {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  position: relative;
+}
+
+.btn-icon svg {
+  display: block;
+}
+
+.retro-input {
+  background: var(--crust);
+  border: 2px solid var(--border);
+  color: var(--text-main);
+  outline: none;
+  padding: 8px 12px;
+  box-shadow: inset 2px 2px 0px rgba(0, 0, 0, 0.5);
+  user-select: text;
+}
+
+.retro-input:focus {
+  border-color: var(--retro-blue);
+}
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* Floating Action Buttons */
+.fab-btn {
+  position: fixed;
+  bottom: 30px;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  line-height: 1;
+  z-index: 40;
+  background: var(--card);
+}
+
+.add-fab-btn {
+  right: 30px;
+  border-color: var(--retro-blue);
+  color: var(--retro-blue);
+}
+
+.add-fab-btn:hover {
+  background: var(--card) !important;
+  border-color: var(--retro-lavender) !important;
+  color: var(--retro-lavender) !important;
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0px var(--crust);
+}
+
+.todo-fab-btn {
+  left: 30px;
+  border-color: var(--retro-red);
+  color: var(--retro-red);
+}
+
+.todo-fab-btn:hover {
+  background: var(--card) !important;
+  border-color: var(--retro-red) !important;
+  color: var(--retro-red) !important;
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0px var(--crust);
+}
+
+.fab-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  font-size: 26px;
+}

@@ -1,0 +1,324 @@
+/* Sections & Section Divider */
+.challenge-section {
+  margin-bottom: 26px;
+}
+
+.section-header {
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--retro-cyan);
+  margin: 0;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.section-divider {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 34px 0 26px 0;
+}
+
+.divider-line {
+  flex: 1;
+  height: 2px;
+  background: repeating-linear-gradient(90deg, var(--border), var(--border) 6px, transparent 6px, transparent 12px);
+}
+
+.divider-label {
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: var(--text-muted);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+/* Track Grid & Card Body */
+.track-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 18px;
+}
+
+.track-card {
+  padding: 16px;
+  border-radius: 4px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.card-reviewing {
+  border-color: var(--retro-mauve);
+  box-shadow: 4px 4px 0px rgba(203, 166, 247, 0.15);
+}
+
+/* Header Pins (20px Centered) */
+.card-header-tags {
+  position: absolute;
+  top: -10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 5;
+  height: 20px;
+}
+
+.stat-pill-container {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  pointer-events: auto;
+}
+
+.stat-pill {
+  background: var(--crust);
+  border: 1px solid var(--retro-cyan);
+  color: var(--retro-cyan);
+  font-size: 10px;
+  font-weight: 700;
+  height: 20px;
+  padding: 0 6px;
+  cursor: pointer;
+  box-shadow: 2px 2px 0px var(--crust);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  gap: 4px;
+  box-sizing: border-box;
+}
+
+.stat-pill:hover {
+  background: var(--retro-cyan);
+  color: var(--crust);
+}
+
+.todo-stat-pill {
+  border-color: var(--retro-red) !important;
+  color: var(--retro-red) !important;
+}
+
+.todo-stat-pill:hover {
+  background: var(--retro-red) !important;
+  color: var(--crust) !important;
+}
+
+.review-tag {
+  background: var(--retro-mauve);
+  color: var(--crust);
+  font-size: 9px;
+  font-weight: 700;
+  height: 20px;
+  padding: 0 6px;
+  border: 1px solid var(--crust);
+  letter-spacing: 1px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  box-shadow: 2px 2px 0px var(--crust);
+  box-sizing: border-box;
+}
+
+/* Persistent Tooltips with Hover Bridge */
+.stat-tooltip {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  right: 0;
+  top: 22px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  box-shadow: 3px 3px 0px var(--crust);
+  padding: 6px 10px;
+  font-size: 10px;
+  color: var(--text-main);
+  z-index: 100;
+  transition: opacity 0.15s ease;
+  pointer-events: auto;
+  white-space: nowrap;
+}
+
+.stat-tooltip::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: 0;
+  right: 0;
+  height: 8px;
+}
+
+.stat-pill-container:hover .stat-tooltip,
+.stat-tooltip:hover {
+  visibility: visible;
+  opacity: 1;
+}
+
+.classic-tooltip {
+  border-color: var(--retro-cyan);
+}
+
+.todo-tooltip {
+  border-color: var(--retro-red);
+  max-width: 280px;
+}
+
+.todo-tooltip-title {
+  color: var(--retro-red);
+  font-weight: 700;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px;
+  margin-bottom: 6px;
+}
+
+.todo-tooltip-item {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 2px 0;
+}
+
+.todo-tooltip-link {
+  color: var(--text-main);
+  text-decoration: none;
+}
+.todo-tooltip-link:hover {
+  color: var(--retro-cyan);
+  text-decoration: underline;
+}
+
+/* Card Head & Content */
+.track-card-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.track-thumb {
+  width: 52px;
+  height: 52px;
+  background: var(--crust);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.track-thumb img { max-width: 46px; max-height: 46px; object-fit: contain; }
+.thumb-na { font-size: 8px; color: var(--text-muted); }
+
+.track-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.track-card-subhead {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 4px;
+}
+
+.track-card-link {
+  font-size: 10px;
+  color: var(--retro-blue);
+  text-decoration: none;
+  cursor: pointer;
+}
+.track-card-link:hover { text-decoration: underline; }
+
+.mode-badge {
+  display: inline-block;
+  background: var(--crust);
+  border: 1px solid var(--retro-mauve);
+  color: var(--retro-mauve);
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  line-height: 1.2;
+}
+
+.radio-group {
+  background: var(--crust);
+  border: 1px solid var(--border);
+  padding: 4px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.radio-label {
+  text-align: center;
+  font-size: 10px;
+  padding: 4px 0;
+  cursor: pointer;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.radio-active {
+  background: var(--card);
+  color: var(--retro-cyan);
+  font-weight: bold;
+  border: 1px solid var(--border);
+}
+
+/* Footer & Action Buttons */
+.track-card-footer {
+  font-size: 9px;
+  color: var(--text-muted);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.card-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.action-btn-todo {
+  padding: 2px 7px;
+  font-size: 9px;
+  border-color: var(--retro-red) !important;
+  color: var(--retro-red) !important;
+  background: var(--card);
+}
+
+.action-btn-todo:hover {
+  border-color: var(--retro-red) !important;
+  color: var(--retro-red) !important;
+  background: rgba(243, 139, 168, 0.18) !important;
+  box-shadow: 4px 4px 0px var(--crust) !important;
+}
+
+.action-btn-edit {
+  padding: 2px 7px;
+  font-size: 9px;
+  border-color: var(--retro-mauve);
+  color: var(--text-main);
+}
+.action-btn-edit:hover {
+  border-color: var(--retro-lavender);
+  color: var(--retro-lavender);
+}

@@ -1,0 +1,700 @@
+doctype html
+html(lang="en")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover")
+    title AWC Badge Tracker
+
+    // Google Fonts: Space Mono
+    link(rel="preconnect" href="https://fonts.googleapis.com")
+    link(rel="preconnect" href="https://fonts.gstatic.com" crossorigin)
+    link(href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet")
+
+    // Production Vue 3
+    script(src="https://unpkg.com/vue@3/dist/vue.global.prod.js")
+
+    link(rel="stylesheet" href="/style.css")
+
+  body(@click="closeContextMenu" @contextmenu="onBodyContextMenu")
+    #app.app-container
+
+      // Database Loading State Indicator
+      .retro-box(v-if="isDbLoading" style="border-color: var(--retro-cyan); color: var(--retro-cyan); font-size: 11px; margin-bottom: 8px; text-align: center; padding: 6px;")
+        | > CONNECTING TO MONGODB ARCHIVE...
+
+      .retro-box(v-if="dbError" style="border-color: var(--retro-red); color: var(--retro-red); font-size: 11px; margin-bottom: 8px; text-align: center; padding: 6px;")
+        | ! {{ dbError }}
+
+      // 1. Header Section
+      header.retro-header
+        .title-wrap
+          span.system-tag /// ARCHIVE SYSTEM
+          h1.retro-title {{ currentUser ? currentUser + "'s badges" : "AWC Badges" }}
+
+        .subheading-box
+          span.subheading-pill
+            span.pill-place {{ profile.place || '#---' }}
+            span.pill-dot •
+            span.pill-rank {{ profile.rank || 'Rank' }}
+            span.pill-dot •
+            span.pill-points {{ profile.points || '0 pts' }}
+
+          // Active User Status & Switcher
+          .user-switch-bar
+            span
+              | USER: 
+              strong {{ currentUser || 'NONE' }}
+            button.retro-btn.btn-sm(@click="openAuthModal" style="padding: 2px 6px;")
+              | SWITCH USER
+
+      // 2. Controls Section
+      .retro-box.controls-bar
+        // Left: Search Input
+        .search-wrap
+          input.retro-input(
+            v-model="searchQuery" 
+            type="text" 
+            placeholder="SEARCH BADGE..." 
+            style="width: 100%; font-size: 11px;"
+          )
+          span.clear-search(v-if="searchQuery" @click="searchQuery = ''") ✕
+
+        // Center: Tab Navigation
+        .nav-pill
+          button.retro-btn.nav-btn(
+            @click="activeTab = 'display'" 
+            :class="{ active: activeTab === 'display' }"
+          ) [ DISPLAY ]
+          button.retro-btn.nav-btn(
+            @click="activeTab = 'track'" 
+            :class="{ active: activeTab === 'track' }"
+          ) [ TRACK ]
+
+        // Right: Action Icons (Merged Master Filter, AWC Sync, Export, Import)
+        .action-buttons
+          button.retro-btn.btn-sm.retro-btn-danger(v-if="activeTab === 'display'" @click="showClearDisplayModal = true")
+            | CLEAR
+
+          // MASTER FILTER ICON BUTTON
+          div(style="position: relative;")
+            button.retro-btn.btn-icon(
+              @click.stop="toggleMasterFilterMenu" 
+              :class="{ active: isAnyFilterActive }"
+            )
+              svg(width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square")
+                polygon(points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3")
+
+            // MULTI-SECTION CHECKBOX-STYLE FILTER POPOVER
+            .retro-box.master-filter-menu(v-if="showMasterFilterMenu" @click.stop)
+              .filter-section-title > MEDIA TYPE
+              .filter-checkbox-item(
+                v-for="m in ['all', 'anime', 'manga']" 
+                :key="m" 
+                @click="setMediaTypeFilter(m)" 
+                :class="{ active: selectedMediaTypeFilter === m }"
+              )
+                span {{ m.toUpperCase() }}
+                span.filter-check-box {{ selectedMediaTypeFilter === m ? '✓' : '' }}
+
+              template(v-if="activeTab === 'track'")
+                .filter-section-title > TRACK STATUS
+                .filter-checkbox-item(
+                  v-for="st in ['all', 'pinned', 'planned', 'construction', 'in progress']" 
+                  :key="st" 
+                  @click="selectedStatusFilter = st" 
+                  :class="{ active: selectedStatusFilter === st }"
+                )
+                  span {{ st.toUpperCase() }}
+                  span.filter-check-box {{ selectedStatusFilter === st ? '✓' : '' }}
+
+              .filter-section-title > CATEGORY ({{ selectedMediaTypeFilter.toUpperCase() }})
+              .filter-checkbox-item(
+                v-for="cat in availableCategories" 
+                :key="cat" 
+                @click="selectedCategoryFilter = cat" 
+                :class="{ active: selectedCategoryFilter.toLowerCase() === cat.toLowerCase() }"
+              )
+                span {{ cat.toUpperCase() }}
+                span.filter-check-box {{ selectedCategoryFilter.toLowerCase() === cat.toLowerCase() ? '✓' : '' }}
+
+          // AWC PROFILE IMPORT LINK ICON BUTTON
+          button.retro-btn.btn-icon(@click="openAwcImportModal")
+            svg(width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square")
+              path(d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71")
+              path(d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71")
+
+          // EXPORT JSON ICON BUTTON
+          button.retro-btn.btn-icon(@click="exportUserDataAsJson")
+            svg(width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square")
+              path(d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4")
+              polyline(points="17 8 12 3 7 8")
+              line(x1="12" y1="3" x2="12" y2="15")
+
+          // IMPORT JSON ICON BUTTON
+          label.retro-btn.btn-icon(style="margin: 0; cursor: pointer;")
+            svg(width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square")
+              path(d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4")
+              polyline(points="7 10 12 15 17 10")
+              line(x1="12" y1="15" x2="12" y2="3")
+            input(type="file" accept=".json" @change="handleImportJsonFile" style="display: none;")
+
+      // 3. Main Content Section
+      main(style="flex: 1;")
+        // DISPLAY TAB
+        section(v-if="activeTab === 'display'")
+          .badge-grid(v-if="filteredDisplayBadges.length > 0")
+            .retro-btn.badge-card(
+              v-for="badge in filteredDisplayBadges" 
+              :key="badge.id" 
+              @contextmenu.prevent="openContextMenu($event, badge, 'display')"
+            )
+              a.badge-card-link(:href="badge.commentLink" target="_blank" rel="noopener noreferrer")
+                .badge-img-wrap
+                  img(:src="badge.imgSrc" :alt="badge.title" loading="lazy")
+                  button.badge-edit-overlay(@click.prevent.stop="openEditDisplayBadgeModal(badge)")
+                    | ✎ BADGE
+                span.badge-title {{ badge.title }}
+
+          .retro-box.empty-state(v-else)
+            | NO BADGES IN DISPLAY ARCHIVE. USE THE AWC IMPORT BUTTON OR COMPLETE TRACKED CARDS.
+
+        // TRACK TAB
+        section(v-if="activeTab === 'track'")
+          // SECTION 1: TIMED ARCHIVES
+          .challenge-section(v-if="filteredTimeLimitedCards.length > 0")
+            .section-header
+              h2.section-title > TIMED ARCHIVES
+
+            .track-grid
+              .retro-box.track-card(
+                v-for="card in filteredTimeLimitedCards" 
+                :key="card.id" 
+                @contextmenu.prevent="openContextMenu($event, card, 'track')" 
+                :class="{ 'card-reviewing': card.isReviewing }"
+              )
+                .card-header-tags
+                  .stat-pill-container(v-if="shouldShowCountPill(card)")
+                    span.stat-pill ⌗ {{ getAniListStat(card).total }}
+                    .stat-tooltip.classic-tooltip(v-if="isClassicCard(card)")
+                      | W: {{ getAniListStat(card).winter }} | Sp: {{ getAniListStat(card).spring }} | Su: {{ getAniListStat(card).summer }} | F: {{ getAniListStat(card).fall }}
+
+                  .stat-pill-container(v-if="getCardTodoList(card).length > 1")
+                    span.stat-pill.todo-stat-pill(@click="showTodoListSidebar = true")
+                      | ⌗ {{ getCardTodoList(card).length }}
+                    .stat-tooltip.todo-tooltip
+                      .todo-tooltip-title TO-DO QUEUE ({{ getCardTodoList(card).length }}):
+                      .todo-tooltip-item(v-for="item in getCardTodoList(card)" :key="item.id")
+                        a.todo-tooltip-link(:href="getAniListUrl(item)" target="_blank" rel="noopener noreferrer")
+                          | • {{ item.animeTitle }}
+
+                  .review-tag(v-if="card.isReviewing") ★ REVIEWING
+
+                div
+                  .track-card-head
+                    .track-thumb
+                      img(v-if="card.badgeImg" :src="card.badgeImg" :alt="card.title")
+                      span.thumb-na(v-else) N/A
+                    div(style="overflow: hidden; flex: 1;")
+                      .track-card-title {{ card.title }}
+                      .track-card-subhead
+                        a.track-card-link(
+                          :href="card.commentLink" 
+                          target="_blank" 
+                          @contextmenu.stop.prevent="openLinkContextMenu($event, card.commentLink)"
+                        ) {{ 'THREAD #' + card.threadId }}
+                        .mode-badge(v-if="isGenreCard(card)")
+                          | MODE: {{ (card.mode || 'easy').toUpperCase() }}
+
+                  .radio-group
+                    label.radio-label(
+                      v-for="st in ['planned', 'construction', 'in progress']" 
+                      :key="st" 
+                      :class="{ 'radio-active': card.status === st }"
+                    )
+                      input(type="radio" :name="'st-' + card.id" :value="st" v-model="card.status" @change="persistState" style="display: none;")
+                      | {{ st === 'construction' ? 'const.' : (st === 'in progress' ? 'prog.' : 'plan') }}
+
+                .track-card-footer
+                  div
+                    span(style="color: var(--retro-green); margin-right: 6px;") [{{ getCardCategory(card).toUpperCase() }}]
+                    span(v-if="card.challengeType" style="color: var(--retro-cyan);") [{{ card.challengeType.toUpperCase() }}]
+
+                  .card-footer-actions
+                    button.retro-btn.btn-sm.action-btn-todo(@click="openAddAnimeModal(card)")
+                      | + TO-DO
+                    button.retro-btn.btn-sm.action-btn-edit(v-if="isCardEditable(card)" @click="openEditModal(card)")
+                      | EDIT
+
+          // SECTION DIVIDER
+          .section-divider(v-if="filteredTimeLimitedCards.length > 0 && filteredOtherCards.length > 0")
+            span.divider-line
+            span.divider-label PERMANENT CHALLENGES
+            span.divider-line
+
+          // SECTION 2: PERMANENT CHALLENGES
+          .challenge-section(v-if="filteredOtherCards.length > 0")
+            .section-header(v-if="filteredTimeLimitedCards.length === 0")
+              h2.section-title > PERMANENT CHALLENGES
+
+            .track-grid
+              .retro-box.track-card(
+                v-for="card in filteredOtherCards" 
+                :key="card.id" 
+                @contextmenu.prevent="openContextMenu($event, card, 'track')" 
+                :class="{ 'card-reviewing': card.isReviewing }"
+              )
+                .card-header-tags
+                  .stat-pill-container(v-if="shouldShowCountPill(card)")
+                    span.stat-pill ⌗ {{ getAniListStat(card).total }}
+                    .stat-tooltip.classic-tooltip(v-if="isClassicCard(card)")
+                      | W: {{ getAniListStat(card).winter }} | Sp: {{ getAniListStat(card).spring }} | Su: {{ getAniListStat(card).summer }} | F: {{ getAniListStat(card).fall }}
+
+                  .stat-pill-container(v-if="getCardTodoList(card).length > 1")
+                    span.stat-pill.todo-stat-pill(@click="showTodoListSidebar = true")
+                      | ⌗ {{ getCardTodoList(card).length }}
+                    .stat-tooltip.todo-tooltip
+                      .todo-tooltip-title TO-DO QUEUE ({{ getCardTodoList(card).length }}):
+                      .todo-tooltip-item(v-for="item in getCardTodoList(card)" :key="item.id")
+                        a.todo-tooltip-link(:href="getAniListUrl(item)" target="_blank" rel="noopener noreferrer")
+                          | • {{ item.animeTitle }}
+
+                  .review-tag(v-if="card.isReviewing") ★ REVIEWING
+
+                div
+                  .track-card-head
+                    .track-thumb
+                      img(v-if="card.badgeImg" :src="card.badgeImg" :alt="card.title")
+                      span.thumb-na(v-else) N/A
+                    div(style="overflow: hidden; flex: 1;")
+                      .track-card-title {{ card.title }}
+                      .track-card-subhead
+                        a.track-card-link(
+                          :href="card.commentLink" 
+                          target="_blank" 
+                          @contextmenu.stop.prevent="openLinkContextMenu($event, card.commentLink)"
+                        ) {{ 'THREAD #' + card.threadId }}
+                        .mode-badge(v-if="isGenreCard(card)")
+                          | MODE: {{ (card.mode || 'easy').toUpperCase() }}
+
+                  .radio-group
+                    label.radio-label(
+                      v-for="st in ['planned', 'construction', 'in progress']" 
+                      :key="st" 
+                      :class="{ 'radio-active': card.status === st }"
+                    )
+                      input(type="radio" :name="'st-' + card.id" :value="st" v-model="card.status" @change="persistState" style="display: none;")
+                      | {{ st === 'construction' ? 'const.' : (st === 'in progress' ? 'prog.' : 'plan') }}
+
+                .track-card-footer
+                  div
+                    span(style="color: var(--retro-green); margin-right: 6px;") [{{ getCardCategory(card).toUpperCase() }}]
+                    span(v-if="card.challengeType" style="color: var(--retro-cyan);") [{{ card.challengeType.toUpperCase() }}]
+
+                  .card-footer-actions
+                    button.retro-btn.btn-sm.action-btn-todo(@click="openAddAnimeModal(card)")
+                      | + TO-DO
+                    button.retro-btn.btn-sm.action-btn-edit(v-if="isCardEditable(card)" @click="openEditModal(card)")
+                      | EDIT
+
+          .retro-box.empty-state(v-if="filteredTrackCards.length === 0")
+            | NO TRACKED BADGES FOUND. PRESS [C] TO LOG A NEW CHALLENGE.
+
+      // FLOATING ACTION BUTTONS (Inside #app)
+      button.retro-btn.fab-btn.todo-fab-btn(@click="showTodoListSidebar = true")
+        svg(width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square")
+          line(x1="3" y1="6" x2="21" y2="6")
+          line(x1="3" y1="12" x2="21" y2="12")
+          line(x1="3" y1="18" x2="21" y2="18")
+
+      button.retro-btn.fab-btn.add-fab-btn(@click="openAddModal")
+        span.fab-icon +
+
+      // TO-DO LIST SIDEBAR (Inside #app)
+      .todo-sidebar-backdrop(v-if="showTodoListSidebar" @click.self="showTodoListSidebar = false")
+        aside.todo-sidebar
+          .todo-sidebar-header
+            div
+              span.system-tag /// WATCH QUEUE
+              h2.todo-sidebar-title > to-do list
+            button.retro-btn.btn-sm(@click="showTodoListSidebar = false") ✕
+
+          .todo-view-tabs
+            button.retro-btn.btn-sm.todo-tab-btn(
+              @click="todoViewMode = 'challenge'" 
+              :class="{ active: todoViewMode === 'challenge' }"
+            ) [ BY CHALLENGE ]
+            button.retro-btn.btn-sm.todo-tab-btn(
+              @click="todoViewMode = 'anime'" 
+              :class="{ active: todoViewMode === 'anime' }"
+            ) [ BY ANIME ]
+
+          div(style="margin-bottom: 14px;")
+            button.retro-btn.btn-sm(@click="openAddAnimeModal(null)" style="width: 100%; border-color: var(--retro-red); color: var(--retro-red); font-weight: bold;")
+              | + LOG ANIME TO CHALLENGE
+
+          .ascii-tree
+            .tree-root > to-do list ({{ todoViewMode === 'challenge' ? 'by challenge' : 'by anime' }})
+
+            div(v-if="todoList.length === 0" style="font-size: 11px; color: var(--text-muted); padding: 12px 0;")
+              | └── (no animes in to-do list)
+
+            // VIEW 1: SORTED BY CHALLENGE
+            template(v-if="todoViewMode === 'challenge'")
+              .tree-challenge-node(v-for="group in groupedTodoList" :key="group.threadId")
+                .tree-challenge-head
+                  span.tree-glyph └──
+                  span.tree-challenge-name {{ group.challengeName }}
+                  button.tree-add-inline(@click="openAddAnimeModal(group)") +
+
+                .tree-anime-container
+                  .tree-anime-node(v-for="(item, aIdx) in group.animes" :key="item.id")
+                    span.tree-anime-glyph
+                      | {{ aIdx === group.animes.length - 1 ? '└──' : '├──' }}
+
+                    .tree-anime-card
+                      img.tree-anime-cover(v-if="item.coverImage" :src="item.coverImage" :alt="item.animeTitle")
+                      .tree-anime-cover-placeholder(v-else) N/A
+
+                      a.tree-anime-link(:href="getAniListUrl(item)" target="_blank" rel="noopener noreferrer")
+                        .tree-anime-title {{ item.animeTitle }}
+
+                      button.tree-del-btn(@click="removeTodoAnime(item.id)") ✕
+
+            // VIEW 2: GROUPED BY ANIME
+            template(v-else)
+              .tree-challenge-node(v-for="group in groupedByAnimeTodoList" :key="group.key")
+                .tree-challenge-head
+                  span.tree-glyph └──
+                  img.tree-anime-cover(v-if="group.coverImage" :src="group.coverImage" style="width: 24px; height: 32px; margin-right: 4px;")
+                  a.tree-anime-link(:href="getAniListUrl(group)" target="_blank" rel="noopener noreferrer")
+                    span.tree-challenge-name {{ group.animeTitle }}
+                  button.tree-del-btn(@click="removeAnimeEverywhere(group.animeTitle)" style="margin-left: 6px;") ✕
+
+                .tree-anime-container
+                  .tree-anime-node(v-for="(c, cIdx) in group.challenges" :key="c.todoId")
+                    span.tree-anime-glyph
+                      | {{ cIdx === group.challenges.length - 1 ? '└──' : '├──' }}
+
+                    .tree-anime-card
+                      span.tree-anime-title(style="color: var(--text-muted) !important;") Target: {{ c.challengeName }}
+
+      // MODAL: IMPORT FROM AWC PROFILE (Inside #app)
+      .modal-backdrop(v-if="showAwcImportModal" @click.self="showAwcImportModal = false")
+        .retro-box.modal-window
+          h3.modal-title > IMPORT FROM AWC PROFILE
+          p.modal-desc Import completed badges directly from your public AWC challenger page:
+
+          div(style="margin-bottom: 12px;")
+            label(style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;") AWC CHALLENGER URL
+            input.retro-input(
+              v-model="awcImportUrl" 
+              type="text" 
+              style="width: 100%; font-size: 12px;"
+            )
+
+          div(v-if="awcImportLoading" style="color: var(--retro-cyan); font-size: 11px; margin-bottom: 8px;")
+            | > Fetching badges from AWC profile...
+          div(
+            v-if="awcImportStatus" 
+            :style="{ color: awcImportIsError ? 'var(--retro-red)' : 'var(--retro-green)' }" 
+            style="font-size: 11px; margin-bottom: 12px;"
+          )
+            | {{ awcImportStatus }}
+
+          div(v-if="showAwcHtmlFallback" style="margin-top: 10px;")
+            p.modal-desc(style="color: var(--retro-peach);") CORS blocked? View source of awc.moe/challenger/{{ currentUser }} and paste HTML below:
+            textarea.retro-input(v-model="awcHtmlInput" style="width: 100%; height: 80px; font-size: 11px;" placeholder="Paste page HTML here...")
+
+          .modal-actions
+            button.retro-btn.btn-sm(type="button" @click="showAwcImportModal = false") CANCEL
+            button.retro-btn.btn-sm(
+              type="button" 
+              @click="handleAwcImport" 
+              :disabled="awcImportLoading" 
+              style="border-color: var(--retro-cyan); color: var(--retro-cyan); font-weight: bold;"
+            )
+              | {{ showAwcHtmlFallback && awcHtmlInput ? 'PARSE HTML' : 'FETCH & IMPORT' }}
+
+      // MODAL: USER AUTH (Inside #app)
+      .modal-backdrop(v-if="showAuthModal")
+        .retro-box.modal-window
+          h3.modal-title > USER LOGIN / SWITCH
+          p.modal-desc Enter your AniList username and login password:
+
+          form(@submit.prevent="handleAuthSubmit")
+            label(style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;") ANILIST USERNAME
+            input.retro-input(
+              v-model="authForm.username" 
+              type="text" 
+              placeholder="e.g. croixph" 
+              style="width: 100%; font-size: 12px; margin-bottom: 12px;" 
+              autofocus
+            )
+
+            label(style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;") USER PASSWORD
+            input.retro-input(
+              v-model="authForm.password" 
+              type="password" 
+              placeholder="••••••••" 
+              style="width: 100%; font-size: 12px; margin-bottom: 12px;"
+            )
+
+            .modal-error(v-if="authError") ! {{ authError }}
+
+            .modal-actions
+              button.retro-btn.btn-sm(v-if="currentUser" type="button" @click="showAuthModal = false") CANCEL
+              button.retro-btn.btn-sm(type="submit" style="border-color: var(--retro-mauve); color: var(--retro-mauve); font-weight: bold;")
+                | LOGIN / SWITCH
+
+      // MODAL: ADD ANIME TO TO-DO (Inside #app)
+      .modal-backdrop(v-if="showAddAnimeModal" @click.self="showAddAnimeModal = false")
+        .retro-box.modal-window
+          h3.modal-title(style="color: var(--retro-red);") > Log Anime to Challenge
+          p.modal-desc Select challenge and search AniList for anime:
+
+          form(@submit.prevent="proceedAddAnime")
+            label(style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;") TARGET CHALLENGE
+            select.retro-input(v-model="addAnimeForm.threadId" style="width: 100%; font-size: 11px; margin-bottom: 12px;")
+              option(v-for="card in trackCards" :key="card.id" :value="card.threadId")
+                | {{ card.title + ' (#' + card.threadId + ')' }}
+
+            label(style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;") SEARCH ANILIST ANIME TITLE
+            div(style="display: flex; gap: 6px;")
+              input.retro-input(
+                v-model="addAnimeForm.animeTitle" 
+                type="text" 
+                placeholder="e.g. Sousou no Frieren" 
+                style="flex: 1; font-size: 12px;" 
+                @input="onSearchAnimeInput"
+              )
+              button.retro-btn.btn-sm(type="button" @click="searchAniListAnime") FIND
+
+            // Live AniList Search Results
+            .anime-search-results(v-if="animeSearchResults.length > 0")
+              .anime-search-item(
+                v-for="res in animeSearchResults" 
+                :key="res.id" 
+                @click="selectAnimeResult(res)"
+              )
+                img.anime-search-thumb(:src="res.coverImage?.medium" alt="cover")
+                .anime-search-details
+                  .anime-search-title
+                    | {{ res.title.english || res.title.romaji }}
+                  .anime-search-meta
+                    span {{ 'AniList #' + res.id }}
+                    span(v-if="res.format") • {{ res.format }}
+                    span(v-if="res.startDate?.year") • {{ res.startDate.year }}
+                .anime-select-badge SELECT
+
+            div(style="margin-top: 12px;")
+              label(style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;") COVER IMAGE URL
+              input.retro-input(
+                v-model="addAnimeForm.coverImage" 
+                type="text" 
+                placeholder="https://s4.anilist.co/..." 
+                style="width: 100%; font-size: 11px;"
+              )
+
+            .modal-error(v-if="addAnimeError" style="margin-top: 8px;") ! {{ addAnimeError }}
+
+            .modal-actions
+              button.retro-btn.btn-sm(type="button" @click="showAddAnimeModal = false") CANCEL
+              button.retro-btn.btn-sm(type="submit" style="border-color: var(--retro-red); color: var(--retro-red); font-weight: bold;")
+                | ADD ANIME
+
+      // MODAL: EDIT DISPLAY BADGE LINK (Inside #app)
+      .modal-backdrop(v-if="showEditBadgeModal" @click.self="showEditBadgeModal = false")
+        .retro-box.modal-window
+          h3.modal-title > Edit Display Badge Link
+          p.modal-desc
+            | Assign or update the badge image link for 
+            strong {{ editingBadgeItem ? editingBadgeItem.title : '' }}
+            | :
+
+          form(@submit.prevent="saveDisplayBadgeEdit")
+            label(style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;") BADGE IMAGE URL
+            input.retro-input(
+              v-model="editBadgeImageForm.imgSrc" 
+              type="text" 
+              placeholder="https://i.postimg.cc/.../badge.png" 
+              style="width: 100%; font-size: 12px; margin-bottom: 8px;" 
+              autofocus
+            )
+
+            div(v-if="editBadgeImageForm.imgSrc" style="text-align: center; margin: 12px 0; padding: 10px; background: var(--crust); border: 1px solid var(--border);")
+              div(style="font-size: 10px; color: var(--text-muted); margin-bottom: 6px;") PREVIEW
+              img(:src="editBadgeImageForm.imgSrc" style="max-height: 80px; max-width: 100%; object-fit: contain;")
+
+            .modal-actions
+              button.retro-btn.btn-sm(type="button" @click="showEditBadgeModal = false") CANCEL
+              button.retro-btn.btn-sm(type="submit" style="border-color: var(--retro-cyan); color: var(--retro-cyan); font-weight: bold;")
+                | UPDATE BADGE
+
+      // MODAL: ADD THREAD COMMENT (Inside #app)
+      .modal-backdrop(v-if="showAddModal" @click.self="showAddModal = false")
+        .retro-box.modal-window
+          h3.modal-title > Log Comment ({{ activeTab.toUpperCase() }})
+          p.modal-desc Paste full AniList forum thread comment link:
+
+          form(@submit.prevent="proceedAdd")
+            input.retro-input(
+              v-model="newCommentInput" 
+              type="text" 
+              placeholder="https://anilist.co/forum/thread/4448/comment/123456" 
+              style="width: 100%; font-size: 12px; margin-bottom: 8px;" 
+              autofocus
+            )
+
+            .modal-error(v-if="inputError") ! {{ inputError }}
+
+            .modal-actions
+              button.retro-btn.btn-sm(type="button" @click="showAddModal = false") CANCEL
+              button.retro-btn.btn-sm(type="submit" style="border-color: var(--retro-cyan); color: var(--retro-cyan); font-weight: bold;")
+                | SUBMIT
+
+      // MODAL: SELECT BADGE IMAGE (MULTI) (Inside #app)
+      .modal-backdrop(v-if="showMultiChoiceModal" @click.self="showMultiChoiceModal = false")
+        .retro-box.modal-window(style="max-width: 580px;")
+          h3.modal-title > Choose Badge to Display
+          p.modal-desc
+            | Multiple badges exist for "
+            strong {{ multiChoiceContext ? multiChoiceContext.challengeName : '' }}
+            | ". Choose one to add:
+
+          .badge-picker-grid
+            .badge-picker-option(
+              v-for="(img, idx) in multiChoiceImages" 
+              :key="idx" 
+              @click="confirmMultiChoice(img)"
+            )
+              img(:src="img" alt="Badge option")
+
+          .modal-actions
+            button.retro-btn.btn-sm(type="button" @click="showMultiChoiceModal = false") CANCEL
+
+      // MODAL: EDIT CARD (Inside #app)
+      .modal-backdrop(v-if="showEditModal" @click.self="showEditModal = false")
+        .retro-box.modal-window
+          h3.modal-title > Edit Card Details
+          p.modal-desc Update parameters for this challenge card:
+
+          form(@submit.prevent="saveCardEdit")
+            label(style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;") CARD TITLE
+            input.retro-input(
+              v-model="editCardForm.title" 
+              type="text" 
+              style="width: 100%; font-size: 12px; margin-bottom: 12px;"
+            )
+
+            label(style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;") COMMENT LINK
+            input.retro-input(
+              v-model="editCardForm.commentLink" 
+              type="text" 
+              style="width: 100%; font-size: 12px; margin-bottom: 12px;"
+            )
+
+            div(v-if="isGenreCard(editingCard)" style="margin-bottom: 14px;")
+              label(style="font-size: 10px; color: var(--retro-mauve); display: block; margin-bottom: 6px;") GENRE MODE
+              .mode-picker-grid
+                button.retro-btn.btn-sm.mode-btn(
+                  type="button" 
+                  v-for="m in ['easy', 'normal', 'hard', 'mastery']" 
+                  :key="m" 
+                  @click="editCardForm.mode = m" 
+                  :class="{ active: editCardForm.mode === m }"
+                )
+                  | {{ m }}
+
+            div(v-if="isGenreCard(editingCard)" style="margin-bottom: 14px;")
+              label(style="font-size: 10px; color: var(--retro-blue); display: block; margin-bottom: 4px;")
+                | CUT-OFF DATE (YYYY-MM-DD)
+              input.retro-input(
+                v-model="editCardForm.cutOffDate" 
+                type="text" 
+                placeholder="YYYY-MM-DD or 0000-00-00" 
+                maxlength="10" 
+                style="width: 100%; font-size: 12px; letter-spacing: 1px;"
+              )
+
+            .modal-actions
+              button.retro-btn.btn-sm(type="button" @click="showEditModal = false") CANCEL
+              button.retro-btn.btn-sm(type="submit" style="border-color: var(--retro-cyan); color: var(--retro-cyan); font-weight: bold;")
+                | SAVE
+
+      // MODAL: CLEAR DISPLAY (Inside #app)
+      .modal-backdrop(v-if="showClearDisplayModal" @click.self="showClearDisplayModal = false")
+        .retro-box.modal-window(style="max-width: 440px; border-color: var(--retro-red);")
+          h3.modal-title(style="color: var(--retro-red);") ⚠ CLEAR DISPLAY GRID
+          p(style="font-size: 12px; color: var(--text-main); margin: 0 0 10px 0; line-height: 1.5;")
+            | Are you sure you want to remove all 
+            strong {{ displayBadges.length }}
+            |  badges from the display grid?
+          .modal-actions
+            button.retro-btn.btn-sm(type="button" @click="showClearDisplayModal = false") CANCEL
+            button.retro-btn.retro-btn-danger.btn-sm(type="button" @click="confirmClearDisplay" style="font-weight: bold;")
+              | CLEAR ALL
+
+      // MODAL: DELETE (Inside #app)
+      .modal-backdrop(v-if="showDeleteModal" @click.self="cancelDelete")
+        .retro-box.modal-window(style="max-width: 420px; border-color: var(--retro-red);")
+          h3.modal-title(style="color: var(--retro-red);") ⚠ CONFIRM DELETION
+          p(style="font-size: 12px; color: var(--text-main); margin: 0 0 8px 0;") Are you sure you want to delete:
+          .delete-preview-item
+            | {{ itemToDelete ? itemToDelete.title : 'Badge' }}
+          .modal-actions
+            button.retro-btn.btn-sm(type="button" @click="cancelDelete") CANCEL
+            button.retro-btn.retro-btn-danger.btn-sm(type="button" @click="confirmDelete" style="font-weight: bold;") DELETE
+
+      // CONTEXT MENU: CARD (Inside #app)
+      .retro-box.context-menu(
+        v-if="contextMenu.visible" 
+        :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }"
+      )
+        template(v-if="contextMenu.type === 'track'")
+          .context-item(
+            @click="toggleReviewCard(contextMenu.targetItem)" 
+            style="display: flex; justify-content: space-between;"
+          )
+            span REVIEWING
+            span(v-if="contextMenu.targetItem && contextMenu.targetItem.isReviewing" style="color: var(--retro-mauve);") ★
+          .context-item(
+            @click="openAddAnimeModal(contextMenu.targetItem); closeContextMenu();" 
+            style="color: var(--retro-red);"
+          )
+            | + ADD TO-DO
+          .context-item(
+            v-if="isCardEditable(contextMenu.targetItem)" 
+            @click="openEditModal(contextMenu.targetItem); closeContextMenu();" 
+            style="color: var(--retro-blue);"
+          )
+            | ✎ EDIT DETAILS
+          .context-item(
+            @click="completeCard(contextMenu.targetItem)" 
+            style="color: var(--retro-green); font-weight: bold;"
+          )
+            | ✓ COMPLETED
+
+        template(v-if="contextMenu.type === 'display'")
+          .context-item(
+            @click="openEditDisplayBadgeModal(contextMenu.targetItem); closeContextMenu();" 
+            style="color: var(--retro-cyan);"
+          )
+            | ✎ EDIT BADGE LINK
+
+        .context-item(
+          @click="promptDelete(contextMenu.targetItem, contextMenu.type)" 
+          style="color: var(--retro-red); border-top: 1px solid var(--border);"
+        )
+          | ✕ DELETE
+
+      // CONTEXT MENU: THREAD LINK (Inside #app)
+      .retro-box.context-menu(
+        v-if="linkContextMenu.visible" 
+        :style="{ top: linkContextMenu.y + 'px', left: linkContextMenu.x + 'px' }"
+      )
+        .context-item(@click="openTargetLink" style="color: var(--retro-cyan); font-weight: bold;")
+          | ↗ OPEN LINK
+        .context-item(@click="copyTargetLink" style="color: var(--text-main);")
+          | ⧉ COPY LINK
+
+    script(type="module" src="/js/app.js")

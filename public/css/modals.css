@@ -1,0 +1,221 @@
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 17, 27, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 200;
+}
+
+.modal-window {
+  width: 100%;
+  max-width: 480px;
+  padding: 24px;
+  border-radius: 4px;
+  background: var(--panel);
+}
+
+.modal-title {
+  margin: 0 0 8px 0;
+  font-size: 15px;
+  color: var(--retro-cyan);
+  text-transform: uppercase;
+}
+
+.modal-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 0 0 16px 0;
+}
+
+.modal-error {
+  color: var(--retro-red);
+  font-size: 11px;
+  margin-bottom: 12px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.delete-preview-item {
+  background: var(--crust);
+  border: 1px solid var(--border);
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--retro-cyan);
+  font-weight: bold;
+  margin-bottom: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Mode Selector Grid */
+.mode-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.mode-btn {
+  padding: 6px 4px;
+  font-size: 10px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+/* Multi-Badge Grid */
+.badge-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 12px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 10px;
+  background: var(--crust);
+  border: 1px solid var(--border);
+}
+
+.badge-picker-option {
+  width: 100%;
+  aspect-ratio: 1;
+  background: var(--card);
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 6px;
+}
+
+.badge-picker-option img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.badge-picker-option:hover {
+  border-color: var(--retro-cyan);
+  transform: scale(1.05);
+}
+
+/* Floating Context Menus */
+.context-menu {
+  position: fixed;
+  z-index: 250;
+  width: 170px;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.context-item {
+  padding: 8px 12px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.context-item:hover {
+  background: var(--card);
+}
+
+/* Compact AniList Live Search Results */
+.anime-search-results {
+  max-height: 220px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border: 2px solid var(--border);
+  background: var(--crust);
+  margin-top: 8px;
+  box-shadow: inset 2px 2px 0px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+}
+
+.anime-search-item {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 6px 10px !important;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  background: var(--crust);
+  transition: background 0.1s ease, border-left 0.1s ease;
+  border-left: 3px solid transparent;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.anime-search-item:hover {
+  background: var(--card) !important;
+  border-left: 3px solid var(--retro-cyan);
+}
+
+.anime-search-item:last-child {
+  border-bottom: none;
+}
+
+.anime-search-thumb {
+  width: 34px !important;
+  height: 48px !important;
+  min-width: 34px !important;
+  max-width: 34px !important;
+  max-height: 48px !important;
+  object-fit: cover !important;
+  border: 1px solid var(--border);
+  background: #000;
+  flex-shrink: 0 !important;
+  display: block;
+}
+
+.anime-search-details {
+  flex: 1;
+  overflow: hidden;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+
+.anime-search-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+}
+
+.anime-search-meta {
+  font-size: 9px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.anime-select-badge {
+  font-size: 9px;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  color: var(--retro-cyan);
+  background: var(--panel);
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 700;
+}
+
+.anime-search-item:hover .anime-select-badge {
+  border-color: var(--retro-cyan);
+  background: var(--retro-cyan);
+  color: var(--crust);
+}
