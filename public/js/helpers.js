@@ -86,7 +86,9 @@ export function extractYearFromTitle(title) {
 
 export function getAniListUrl(item) {
   if (!item) return '#';
-  if (item.anilistId) return `https://anilist.co/anime/${item.anilistId}`;
-  const title = item.animeTitle || '';
-  return `https://anilist.co/search/anime?search=${encodeURIComponent(title)}`;
+  const mediaType = String(item.mediaType || item.media || 'anime').toLowerCase();
+  const typeSegment = mediaType === 'manga' ? 'manga' : 'anime';
+  if (item.anilistId) return `https://anilist.co/${typeSegment}/${item.anilistId}`;
+  const title = item.animeTitle || item.title || '';
+  return `https://anilist.co/search/${typeSegment}?search=${encodeURIComponent(title)}`;
 }

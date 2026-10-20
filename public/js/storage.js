@@ -1,8 +1,21 @@
 const FILE_NAME = 'awc_tracker_users.json';
+const LS_KEY = 'awc_tracker_users';
+const LS_FALLBACK_KEY = 'awc_tracker_users_fallback';
 
 export async function writeDataToFile(dataObj) {
+  if (!dataObj) return false;
   const jsonStr = JSON.stringify(dataObj, null, 2);
-  if (navigator.storage && navigator.storage.getDirectory) {
+
+  // 1. Always guarantee synchronous persistence to LocalStorage
+  try {
+    localStorage.setItem(LS_KEY, jsonStr);
+    localStorage.setItem(LS_FALLBACK_KEY, jsonStr);
+  } catch (lsErr) {
+    console.warn('LocalStorage write warning:', lsErr);
+  }
+
+  // 2. Also persist to OPFS if supported in this environment
+  if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.getDirectory) {
     try {
       const root = await navigator.storage.getDirectory();
       const fileHandle = await root.getFileHandle(FILE_NAME, { create: true });
@@ -10,33 +23,48 @@ export async function writeDataToFile(dataObj) {
       await writable.write(jsonStr);
       await writable.close();
       return true;
-    } catch (e) {
-      console.warn('Failed writing to OPFS file:', e);
+    } catch (opfsErr) {
+      console.warn('OPFS write warning (fallback to localStorage active):', opfsErr);
     }
   }
-  localStorage.setItem('awc_tracker_users_fallback', jsonStr);
-  return false;
+
+  return true;
 }
 
 export async function readDataFromFile() {
-  if (navigator.storage && navigator.storage.getDirectory) {
+  let result = null;
+
+  // 1. Try reading from OPFS first if available
+  if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.getDirectory) {
     try {
       const root = await navigator.storage.getDirectory();
       const fileHandle = await root.getFileHandle(FILE_NAME);
       const file = await fileHandle.getFile();
       const text = await file.text();
-      return JSON.parse(text);
+      if (text && text.trim().length > 0) {
+        result = JSON.parse(text);
+      }
     } catch (e) {
-      // First boot: file may not exist yet
+      // OPFS file may not exist yet or iframe restricted
     }
   }
-  const fallback = localStorage.getItem('awc_tracker_users_fallback');
-  if (fallback) {
-    try {
-      return JSON.parse(fallback);
-    } catch (e) {}
+
+  // 2. Check LocalStorage (which is always kept up to date)
+  if (!result || !result.users || Object.keys(result.users).length === 0) {
+    const raw = localStorage.getItem(LS_KEY) || localStorage.getItem(LS_FALLBACK_KEY);
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && (parsed.users || parsed.lastActiveUser)) {
+          result = parsed;
+        }
+      } catch (e) {
+        console.warn('Failed parsing localStorage data:', e);
+      }
+    }
   }
-  return null;
+
+  return result;
 }
 
 export function exportJsonFile(dataObj, fileName) {

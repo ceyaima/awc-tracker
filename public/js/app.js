@@ -2,6 +2,7 @@ import { writeDataToFile, readDataFromFile, exportJsonFile } from './storage.js'
 import { extractThreadId, getAniListUrl } from './helpers.js';
 import {
   fetchAniListCompleted,
+  searchAniListMedia,
   searchAniListAnime,
   fetchAwcProfile,
   parseAwcChallengerHtml,
@@ -13,6 +14,7 @@ import {
   getBadgeMediaType,
   isSeasonalCard,
   isMonthlyCard,
+  isHighPriorityCard,
   isTimeLimitedCard,
   isGenreCard,
   isClassicCard,
@@ -65,12 +67,35 @@ createApp({
     const todoList = ref([]);
     const showTodoListSidebar = ref(false);
     const todoViewMode = ref('challenge');
+    const todoMediaFilter = ref('all'); // 'all', 'anime', 'manga'
+
+    const toggleTodoMediaFilter = () => {
+      if (todoMediaFilter.value === 'all') todoMediaFilter.value = 'anime';
+      else if (todoMediaFilter.value === 'anime') todoMediaFilter.value = 'manga';
+      else todoMediaFilter.value = 'all';
+    };
+
+    const getChallengeLink = (tid) => {
+      if (!tid) return '#';
+      const cleanId = String(tid).trim();
+      const matched = trackCards.value.find(c => String(c.threadId).trim() === cleanId);
+      if (matched?.commentLink) return matched.commentLink;
+      return `https://anilist.co/forum/thread/${cleanId}`;
+    };
 
     const showAddAnimeModal = ref(false);
-    const addAnimeForm = ref({ threadId: '', animeTitle: '', coverImage: '', anilistId: null });
+    const addAnimeForm = ref({ threadId: '', animeTitle: '', coverImage: '', anilistId: null, mediaType: 'anime' });
     const animeSearchResults = ref([]);
     const addAnimeError = ref('');
     let searchDebounceTimer = null;
+
+    const currentTargetMediaType = computed(() => {
+      const tid = addAnimeForm.value.threadId;
+      if (!tid) return 'anime';
+      const card = trackCards.value.find(c => String(c.threadId).trim() === String(tid).trim());
+      const cData = challengesData.value[String(tid).trim()];
+      return getCardMediaType(card, challengesData.value) || cData?.media || cData?.mediaType || 'anime';
+    });
 
     const showEditBadgeModal = ref(false);
     const editingBadgeItem = ref(null);
@@ -108,16 +133,22 @@ createApp({
     const contextMenu = ref({ visible: false, x: 0, y: 0, targetItem: null, type: 'track' });
     const linkContextMenu = ref({ visible: false, x: 0, y: 0, url: '' });
 
-    // Helper to look up challenge data regardless of String vs Number
-    const getChallengeById = (id) => {
+    // Helper to look up challenge data regardless of String vs Number or Media type
+    const getChallengeById = (id, media = null) => {
       if (!id) return null;
       const cleanId = String(id).trim();
+      if (media && challengesData.value[`${String(media).toLowerCase()}:${cleanId}`]) {
+        return challengesData.value[`${String(media).toLowerCase()}:${cleanId}`];
+      }
       return challengesData.value[cleanId] || null;
     };
 
-    const getBadgesById = (id) => {
+    const getBadgesById = (id, media = null) => {
       if (!id) return [];
       const cleanId = String(id).trim();
+      if (media && badgesData.value[`${String(media).toLowerCase()}:${cleanId}`]) {
+        return badgesData.value[`${String(media).toLowerCase()}:${cleanId}`];
+      }
       return badgesData.value[cleanId] || [];
     };
 
@@ -149,15 +180,20 @@ createApp({
       const defaultImg = badgeList[0] || '';
 
       if (activeTab.value === 'display') {
-        if (challenge.type === 'multi' && badgeList.length > 0) {
+        const isGenre = isGenreCard({ category: challenge.category, title: challenge.name }, challengesData.value);
+        const isMonthly = isMonthlyCard({ category: challenge.category, title: challenge.name }, challengesData.value);
+
+        if (badgeList.length > 1) {
           multiChoiceImages.value = badgeList;
           multiChoiceContext.value = {
             threadId,
             commentLink: url,
             challengeName: challenge.name,
-            category: challenge.category || 'Other',
+            category: challenge.category || (isGenre ? 'Genre' : (isMonthly ? 'Monthly' : 'Other')),
             mediaType: challenge.mediaType || challenge.media || 'anime',
-            sourceCardId: null
+            sourceCardId: null,
+            isGenre,
+            isMonthly
           };
           showAddModal.value = false;
           showMultiChoiceModal.value = true;
@@ -175,6 +211,7 @@ createApp({
         });
         persistState();
         showAddModal.value = false;
+        return;
       } else {
         const isGenre = (challenge.category || '').toLowerCase() === 'genre';
         const newCard = {
@@ -236,16 +273,29 @@ createApp({
       }
     };
 
+    const resetAllFilters = () => {
+      selectedMediaTypeFilter.value = 'all';
+      selectedCategoryFilter.value = 'all';
+      selectedStatusFilter.value = 'all';
+      searchQuery.value = '';
+    };
+
+    const onMediaTypeChange = () => {
+      if (!availableCategories.value.includes(selectedCategoryFilter.value)) {
+        selectedCategoryFilter.value = 'all';
+      }
+    };
+
     const getAniListStat = (card) => {
       return calculateAniListStat(card, userAnimeList.value, challengesData.value);
     };
 
-    const syncBadgesWithJson = () => {
+    const syncBadgesWithDb = () => {
       let changed = false;
 
       trackCards.value.forEach(card => {
         const tid = String(card.threadId || '').trim();
-        const challenge = challengesData.value[tid];
+        const challenge = getChallengeById(tid, card.mediaType);
 
         if (challenge) {
           if ((!card.title || card.title.startsWith('Thread #')) && challenge.name) {
@@ -266,7 +316,7 @@ createApp({
           }
         }
 
-        const bList = badgesData.value[tid];
+        const bList = getBadgesById(tid, card.mediaType);
         if (bList && bList.length > 0) {
           let expectedImg = bList[0];
           if (isGenreCard(card, challengesData.value)) {
@@ -285,17 +335,52 @@ createApp({
         const tid = String(badge.threadId || '').trim();
         if (tid === '67067') return;
 
-        const bList = badgesData.value[tid];
+        const bList = getBadgesById(tid, badge.mediaType);
         if (bList && bList.length > 0) {
-          if (!bList.includes(badge.imgSrc)) {
-            badge.imgSrc = bList[0];
-            changed = true;
+          const tLower = (badge.title || '').toLowerCase();
+          const isGenre = isGenreCard(badge, challengesData.value);
+          const isMonthly = isMonthlyCard(badge, challengesData.value);
+
+          if (isGenre) {
+            // Genre mode mapping:
+            // easy mode: 1st image link
+            // normal mode: 2nd image link
+            // hard mode: 3rd image link
+            // mastery: 4th image link
+            let idx = 0;
+            if (tLower.includes('mastery')) idx = 3;
+            else if (tLower.includes('hard')) idx = 2;
+            else if (tLower.includes('normal')) idx = 1;
+            else idx = 0;
+            const expectedImg = bList[idx] || bList[0];
+            if (badge.imgSrc !== expectedImg) {
+              badge.imgSrc = expectedImg;
+              changed = true;
+            }
+          } else if (isMonthly) {
+            // Monthly mode mapping:
+            // easy mode: 1st image link
+            // hard mode: 2nd image link
+            const idx = tLower.includes('hard') ? 1 : 0;
+            const expectedImg = bList[idx] || bList[0];
+            if (badge.imgSrc !== expectedImg) {
+              badge.imgSrc = expectedImg;
+              changed = true;
+            }
+          } else {
+            // For other challenges, preserve user choice if already set
+            if (!badge.imgSrc) {
+              badge.imgSrc = bList[0];
+              changed = true;
+            }
           }
         }
       });
 
       if (changed) persistState();
     };
+
+    const syncBadgesWithJson = syncBadgesWithDb;
 
     const persistState = async () => {
       if (!currentUser.value) return;
@@ -323,6 +408,11 @@ createApp({
       trackCards.value = uData.track || [];
       todoList.value = uData.todoList || [];
       userAnimeList.value = [];
+
+      trackCards.value.forEach(card => {
+        const count = todoList.value.filter(i => String(i.threadId).trim() === String(card.threadId).trim()).length;
+        if (count > 0) card.hadTodos = true;
+      });
 
       syncBadgesWithJson();
 
@@ -551,8 +641,12 @@ createApp({
         cards = cards.filter(c => getCardMediaType(c, challengesData.value) === selectedMediaTypeFilter.value);
       }
       if (selectedStatusFilter.value === 'pinned') {
-        cards = cards.filter(c => c.isReviewing);
-      } else if (['planned', 'construction', 'in progress'].includes(selectedStatusFilter.value)) {
+        cards = cards.filter(c => c.isReviewing && !c.isCompletedTodo);
+      } else if (selectedStatusFilter.value === 'completed') {
+        cards = cards.filter(c => c.isReviewing && c.isCompletedTodo);
+      } else if (selectedStatusFilter.value === 'has to-dos') {
+        cards = cards.filter(c => getCardTodoList(c).length > 0);
+      } else if (['planned', 'construction', 'in progress', 'reviewing'].includes(selectedStatusFilter.value)) {
         cards = cards.filter(c => c.status === selectedStatusFilter.value);
       }
       if (selectedCategoryFilter.value !== 'all') {
@@ -561,17 +655,27 @@ createApp({
       return cards.sort((a, b) => (b.isReviewing === true ? 1 : 0) - (a.isReviewing === true ? 1 : 0));
     });
 
-    const filteredTimeLimitedCards = computed(() => filteredTrackCards.value.filter(c => isTimeLimitedCard(c, challengesData.value)));
-    const filteredOtherCards = computed(() => filteredTrackCards.value.filter(c => !isTimeLimitedCard(c, challengesData.value)));
+    const filteredHighPriorityCards = computed(() => filteredTrackCards.value.filter(c => isHighPriorityCard(c, challengesData.value)));
+    const filteredOtherCards = computed(() => filteredTrackCards.value.filter(c => !isHighPriorityCard(c, challengesData.value)));
+    const filteredTimeLimitedCards = filteredHighPriorityCards;
 
-    const getCardTodoList = (card) => todoList.value.filter(item => item.threadId === card.threadId);
+    const getCardTodoList = (card) => todoList.value.filter(item => String(item.threadId).trim() === String(card.threadId).trim());
+
+    const filteredTodoListItems = computed(() => {
+      if (todoMediaFilter.value === 'all') return todoList.value;
+      return todoList.value.filter(item => {
+        const matchedCard = trackCards.value.find(c => String(c.threadId).trim() === String(item.threadId).trim());
+        const itemMedia = item.mediaType || getCardMediaType(matchedCard, challengesData.value) || challengesData.value[item.threadId]?.media || 'anime';
+        return itemMedia.toLowerCase() === todoMediaFilter.value.toLowerCase();
+      });
+    });
 
     const groupedTodoList = computed(() => {
       const map = {};
-      todoList.value.forEach(item => {
+      filteredTodoListItems.value.forEach(item => {
         const tid = item.threadId || 'general';
         if (!map[tid]) {
-          const matchedCard = trackCards.value.find(c => c.threadId === tid);
+          const matchedCard = trackCards.value.find(c => String(c.threadId).trim() === String(tid).trim());
           const challenge = challengesData.value[tid];
           const challengeName = matchedCard?.title || challenge?.name || `Thread #${tid}`;
           map[tid] = { threadId: tid, challengeName, animes: [] };
@@ -583,7 +687,7 @@ createApp({
 
     const groupedByAnimeTodoList = computed(() => {
       const map = {};
-      todoList.value.forEach(item => {
+      filteredTodoListItems.value.forEach(item => {
         const key = item.animeTitle.toLowerCase().trim();
         if (!map[key]) {
           map[key] = {
@@ -591,10 +695,11 @@ createApp({
             animeTitle: item.animeTitle,
             coverImage: item.coverImage,
             anilistId: item.anilistId,
+            mediaType: item.mediaType || 'anime',
             challenges: []
           };
         }
-        const matchedCard = trackCards.value.find(c => c.threadId === item.threadId);
+        const matchedCard = trackCards.value.find(c => String(c.threadId).trim() === String(item.threadId).trim());
         const challengeName = matchedCard?.title || challengesData.value[item.threadId]?.name || `Thread #${item.threadId}`;
         map[key].challenges.push({ todoId: item.id, threadId: item.threadId, challengeName });
       });
@@ -604,18 +709,36 @@ createApp({
     const removeAnimeEverywhere = (animeTitle) => {
       if (!animeTitle) return;
       const target = animeTitle.toLowerCase().trim();
+      const affectedItems = todoList.value.filter(item => item.animeTitle.toLowerCase().trim() === target);
+      const affectedThreadIds = new Set(affectedItems.map(i => String(i.threadId).trim()));
+
       todoList.value = todoList.value.filter(item => item.animeTitle.toLowerCase().trim() !== target);
+
+      affectedThreadIds.forEach(tid => {
+        if (!tid) return;
+        const remaining = todoList.value.filter(i => String(i.threadId).trim() === tid).length;
+        if (remaining === 0) {
+          const card = trackCards.value.find(c => String(c.threadId).trim() === tid);
+          if (card && card.hadTodos) {
+            card.isReviewing = true;
+            card.isCompletedTodo = true;
+          }
+        }
+      });
+
       persistState();
     };
 
     const openAddAnimeModal = (groupOrCard) => {
       addAnimeError.value = '';
       animeSearchResults.value = [];
+      const defaultThreadId = groupOrCard?.threadId || (trackCards.value[0]?.threadId || '');
       addAnimeForm.value = {
-        threadId: groupOrCard?.threadId || (trackCards.value[0]?.threadId || ''),
+        threadId: defaultThreadId,
         animeTitle: '',
         coverImage: '',
-        anilistId: null
+        anilistId: null,
+        mediaType: 'anime'
       };
       showAddAnimeModal.value = true;
     };
@@ -624,14 +747,24 @@ createApp({
       clearTimeout(searchDebounceTimer);
       searchDebounceTimer = setTimeout(async () => {
         const q = addAnimeForm.value.animeTitle.trim();
-        if (q.length >= 2) animeSearchResults.value = await searchAniListAnime(q);
+        if (q.length >= 2) {
+          animeSearchResults.value = await searchAniListMedia(q, currentTargetMediaType.value);
+        }
       }, 400);
+    };
+
+    const searchAniListAnime = async () => {
+      const q = addAnimeForm.value.animeTitle.trim();
+      if (q.length >= 2) {
+        animeSearchResults.value = await searchAniListMedia(q, currentTargetMediaType.value);
+      }
     };
 
     const selectAnimeResult = (anime) => {
       addAnimeForm.value.animeTitle = anime.title.english || anime.title.romaji;
       addAnimeForm.value.coverImage = anime.coverImage?.medium || '';
       addAnimeForm.value.anilistId = anime.id;
+      addAnimeForm.value.mediaType = currentTargetMediaType.value;
       animeSearchResults.value = [];
     };
 
@@ -641,22 +774,46 @@ createApp({
         return;
       }
       if (!addAnimeForm.value.animeTitle.trim()) {
-        addAnimeError.value = 'Please specify an anime title.';
+        addAnimeError.value = 'Please specify a title.';
         return;
       }
+      const mediaType = currentTargetMediaType.value || 'anime';
       todoList.value.push({
-        id: 'todo-' + Date.now(),
+        id: 'todo-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
         threadId: addAnimeForm.value.threadId,
         animeTitle: addAnimeForm.value.animeTitle.trim(),
         coverImage: addAnimeForm.value.coverImage.trim(),
-        anilistId: addAnimeForm.value.anilistId
+        anilistId: addAnimeForm.value.anilistId,
+        mediaType
       });
+
+      const matched = trackCards.value.find(c => String(c.threadId).trim() === String(addAnimeForm.value.threadId).trim());
+      if (matched) {
+        matched.hadTodos = true;
+        matched.isCompletedTodo = false;
+      }
+
       persistState();
       showAddAnimeModal.value = false;
     };
 
     const removeTodoAnime = (todoId) => {
+      const item = todoList.value.find(i => i.id === todoId);
+      const affectedThreadId = item ? String(item.threadId).trim() : null;
+
       todoList.value = todoList.value.filter(i => i.id !== todoId);
+
+      if (affectedThreadId) {
+        const remaining = todoList.value.filter(i => String(i.threadId).trim() === affectedThreadId).length;
+        if (remaining === 0) {
+          const card = trackCards.value.find(c => String(c.threadId).trim() === affectedThreadId);
+          if (card && card.hadTodos) {
+            card.isReviewing = true;
+            card.isCompletedTodo = true;
+          }
+        }
+      }
+
       persistState();
     };
 
@@ -734,13 +891,18 @@ createApp({
           challenges.forEach(c => {
             const tid = String(c.challengeId ?? c.threadId ?? c.id ?? '').trim();
             if (tid) {
-              challengesMap[tid] = {
+              const m = String(c.media || c.mediaType || 'anime').toLowerCase();
+              const obj = {
                 ...c,
                 name: c.name || c.title || `Thread #${tid}`,
                 category: c.category || 'Other',
                 type: c.type || 'single',
-                mediaType: c.media || c.mediaType || 'anime'
+                mediaType: m
               };
+              challengesMap[`${m}:${tid}`] = obj;
+              if (!challengesMap[tid] || m === 'anime') {
+                challengesMap[tid] = obj;
+              }
             }
           });
         }
@@ -750,7 +912,12 @@ createApp({
           badges.forEach(b => {
             const bid = String(b.badgeId ?? b.challengeId ?? b.threadId ?? b.id ?? '').trim();
             if (bid) {
-              badgesMap[bid] = Array.isArray(b.images) ? b.images : (b.images ? [b.images] : (b.badgeImg ? [b.badgeImg] : []));
+              const imgs = Array.isArray(b.images) ? b.images : (b.images ? [b.images] : (b.badgeImg ? [b.badgeImg] : []));
+              const m = String(b.media || 'anime').toLowerCase();
+              badgesMap[`${m}:${bid}`] = imgs;
+              if (!badgesMap[bid] || m === 'anime') {
+                badgesMap[bid] = imgs;
+              }
             }
           });
         }
@@ -769,7 +936,7 @@ createApp({
       if (store && store.users) {
         allUsersData.value = store.users;
         if (store.lastActiveUser && allUsersData.value[store.lastActiveUser.toLowerCase()]) {
-          loadUserData(store.lastActiveUser);
+          await loadUserData(store.lastActiveUser);
         } else {
           showAuthModal.value = true;
         }
@@ -777,21 +944,89 @@ createApp({
         showAuthModal.value = true;
       }
 
-      syncBadgesWithJson();
+      syncBadgesWithDb();
     });
 
-    const confirmMultiChoice = (selectedImg) => {
+    const getGenreModeBadgeChoices = (itemOrCtx) => {
+      if (!itemOrCtx) return [];
+      const tid = itemOrCtx.threadId;
+      const media = itemOrCtx.mediaType || getCardMediaType(itemOrCtx, challengesData.value);
+      const bList = getBadgesById(tid, media);
+      const modes = [
+        { label: 'EASY MODE', img: bList[0] || '' },
+        { label: 'NORMAL MODE', img: bList[1] || bList[0] || '' },
+        { label: 'HARD MODE', img: bList[2] || bList[0] || '' },
+        { label: 'MASTERY', img: bList[3] || bList[0] || '' }
+      ];
+      return modes.filter(m => !!m.img);
+    };
+
+    const getMonthlyModeBadgeChoices = (itemOrCtx) => {
+      if (!itemOrCtx) return [];
+      const tid = itemOrCtx.threadId;
+      const media = itemOrCtx.mediaType || getCardMediaType(itemOrCtx, challengesData.value);
+      const bList = getBadgesById(tid, media);
+      const modes = [
+        { label: 'EASY MODE', img: bList[0] || '' },
+        { label: 'HARD MODE', img: bList[1] || bList[0] || '' }
+      ];
+      return modes.filter(m => !!m.img);
+    };
+
+    const confirmModeChoice = (selectedImg, modeLabel) => {
       if (!multiChoiceContext.value) return;
       const { threadId, commentLink, challengeName, category, mediaType, sourceCardId } = multiChoiceContext.value;
+
+      const titleSuffix = modeLabel ? ` [${modeLabel}]` : '';
+      const finalTitle = titleSuffix && !challengeName.toUpperCase().includes('MODE')
+        ? `${challengeName}${titleSuffix}`
+        : challengeName;
 
       displayBadges.value.unshift({
         id: 'display-' + Date.now(),
         threadId,
         commentLink,
-        title: challengeName,
+        title: finalTitle,
         imgSrc: selectedImg,
         category: category || challengesData.value[threadId]?.category || 'Other',
-        mediaType: mediaType || challengesData.value[threadId]?.mediaType || challengesData[threadId]?.media || 'anime'
+        mediaType: mediaType || challengesData.value[threadId]?.mediaType || 'anime'
+      });
+
+      if (sourceCardId) {
+        trackCards.value = trackCards.value.filter(c => c.id !== sourceCardId);
+      }
+
+      persistState();
+      showMultiChoiceModal.value = false;
+      multiChoiceContext.value = null;
+    };
+
+    const confirmMultiChoice = (selectedImg) => {
+      if (!multiChoiceContext.value) return;
+      const { threadId, commentLink, challengeName, category, mediaType, sourceCardId, isGenre, isMonthly } = multiChoiceContext.value;
+      const badgeList = getBadgesById(threadId, mediaType);
+      const idx = badgeList.indexOf(selectedImg);
+
+      let titleSuffix = '';
+      if (isGenre) {
+        const genreModes = [' [EASY MODE]', ' [NORMAL MODE]', ' [HARD MODE]', ' [MASTERY]'];
+        titleSuffix = genreModes[idx] || '';
+      } else if (isMonthly) {
+        titleSuffix = idx === 1 ? ' [HARD MODE]' : ' [EASY MODE]';
+      }
+
+      const finalTitle = titleSuffix && !challengeName.toUpperCase().includes('MODE')
+        ? `${challengeName}${titleSuffix}`
+        : challengeName;
+
+      displayBadges.value.unshift({
+        id: 'display-' + Date.now(),
+        threadId,
+        commentLink,
+        title: finalTitle,
+        imgSrc: selectedImg,
+        category: category || challengesData.value[threadId]?.category || 'Other',
+        mediaType: mediaType || challengesData.value[threadId]?.mediaType || 'anime'
       });
 
       if (sourceCardId) {
@@ -809,6 +1044,11 @@ createApp({
       const challenge = challengesData.value[threadId] || { name: card.title, type: card.challengeType || 'single', category: card.category || 'Other', mediaType: getCardMediaType(card, challengesData.value) };
       const badgeList = badgesData.value[threadId] || (card.badgeImg ? [card.badgeImg] : []);
 
+      // 1. Genre:
+      // easy mode: first image link from the array of images stored in the badges database
+      // normal mode: second image link
+      // hard mode: third image link
+      // mastery: fourth image link
       if (isGenreCard(card, challengesData.value)) {
         const mode = (card.mode || 'easy').toLowerCase();
         const modeIndexMap = { easy: 0, normal: 1, hard: 2, mastery: 3 };
@@ -836,7 +1076,35 @@ createApp({
         return;
       }
 
-      if (challenge.type === 'multi' && badgeList.length > 1) {
+      // 2. Monthly:
+      // easy mode: first image link
+      // hard mode: second image link
+      if (isMonthlyCard(card, challengesData.value)) {
+        const mLower = (card.mode || '').toLowerCase();
+        const titleLower = (card.title || '').toLowerCase();
+        const isHard = mLower === 'hard' || titleLower.includes('hard');
+        const badgeIndex = isHard ? 1 : 0;
+        const selectedImg = badgeList[badgeIndex] || badgeList[0] || card.badgeImg || '';
+        const modeLabel = isHard ? 'HARD MODE' : 'EASY MODE';
+
+        displayBadges.value.unshift({
+          id: 'display-' + Date.now(),
+          threadId,
+          commentLink: card.commentLink,
+          title: card.title.toUpperCase().includes('MODE') ? card.title : `${card.title} [${modeLabel}]`,
+          imgSrc: selectedImg,
+          category: 'Monthly',
+          mediaType: getCardMediaType(card, challengesData.value)
+        });
+
+        trackCards.value = trackCards.value.filter(c => c.id !== card.id);
+        persistState();
+        closeContextMenu();
+        return;
+      }
+
+      // 3. For every other challenge with more than one badge: ask the user
+      if (badgeList.length > 1) {
         multiChoiceImages.value = badgeList;
         multiChoiceContext.value = {
           threadId,
@@ -949,6 +1217,9 @@ createApp({
     const toggleReviewCard = (card) => {
       if (!card) return;
       card.isReviewing = !card.isReviewing;
+      if (!card.isReviewing) {
+        card.isCompletedTodo = false;
+      }
       persistState();
       closeContextMenu();
     };
@@ -1014,6 +1285,7 @@ createApp({
       isClassicCard: (c) => isClassicCard(c, challengesData.value),
       isSeasonalCard: (c) => isSeasonalCard(c, challengesData.value),
       isMonthlyCard: (c) => isMonthlyCard(c, challengesData.value),
+      isHighPriorityCard: (c) => isHighPriorityCard(c, challengesData.value),
       isTimeLimitedCard: (c) => isTimeLimitedCard(c, challengesData.value),
       isCardEditable: (c) => isCardEditable(c, challengesData.value),
       shouldShowCountPill: (c) => shouldShowCountPill(c, challengesData.value),
@@ -1023,10 +1295,15 @@ createApp({
       filteredDisplayBadges,
       trackCards,
       filteredTrackCards,
+      filteredHighPriorityCards,
       filteredTimeLimitedCards,
       filteredOtherCards,
       showTodoListSidebar,
       todoViewMode,
+      todoMediaFilter,
+      toggleTodoMediaFilter,
+      currentTargetMediaType,
+      getChallengeLink,
       todoList,
       groupedTodoList,
       groupedByAnimeTodoList,

@@ -28,10 +28,22 @@ export function isMonthlyCard(card, challengesData) {
   return getCardCategory(card, challengesData).toLowerCase() === 'monthly' || !!parseMonthFromTitle(card?.title);
 }
 
-export function isTimeLimitedCard(card, challengesData) {
+export function isHighPriorityCard(card, challengesData = {}) {
+  if (!card) return false;
+  const tid = String(card.threadId || card.challengeId || '').trim();
+  if (tid === '67067' || tid === '69234') return true;
+
   const cat = getCardCategory(card, challengesData).toLowerCase();
-  return cat === 'monthly' || cat === 'seasonal' || isSeasonalCard(card, challengesData) || isMonthlyCard(card, challengesData);
+  if (cat === 'monthly' || cat === 'seasonal' || cat === 'gacha') return true;
+  if (isSeasonalCard(card, challengesData) || isMonthlyCard(card, challengesData)) return true;
+
+  const title = (card.title || card.name || '').toLowerCase();
+  if (title.includes('gacha')) return true;
+
+  return false;
 }
+
+export const isTimeLimitedCard = isHighPriorityCard;
 
 export function isGenreCard(card, challengesData) {
   return getCardCategory(card, challengesData).toLowerCase() === 'genre';

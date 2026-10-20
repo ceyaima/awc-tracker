@@ -106,6 +106,67 @@
   transform: scale(1.05);
 }
 
+.badge-picker-tag {
+  font-size: 9px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+/* Mode Badge Multi-Choice Selection */
+.mode-badge-selection-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px;
+  margin: 12px 0 16px 0;
+}
+
+.mode-badge-choice {
+  background: var(--crust);
+  border: 2px solid var(--border);
+  padding: 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+  border-radius: 2px;
+}
+
+.mode-badge-choice:hover {
+  border-color: var(--retro-cyan);
+  background: var(--card);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+}
+
+.mode-badge-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--retro-mauve);
+  letter-spacing: 0.5px;
+  text-align: center;
+}
+
+.mode-badge-thumb {
+  width: 100%;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  padding: 4px;
+}
+
+.mode-badge-thumb img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
 /* Floating Context Menus */
 .context-menu {
   position: fixed;

@@ -60,12 +60,13 @@ export async function fetchAniListCompleted(userName) {
   return Array.from(mediaMap.values());
 }
 
-export async function searchAniListAnime(searchTerm) {
+export async function searchAniListMedia(searchTerm, mediaType = 'ANIME') {
   if (!searchTerm || searchTerm.length < 2) return [];
+  const anilistType = String(mediaType || 'ANIME').toUpperCase() === 'MANGA' ? 'MANGA' : 'ANIME';
   const query = `
-    query ($search: String) {
+    query ($search: String, $type: MediaType) {
       Page(perPage: 6) {
-        media(search: $search, type: ANIME) {
+        media(search: $search, type: $type) {
           id
           title { romaji english }
           coverImage { medium }
@@ -79,10 +80,14 @@ export async function searchAniListAnime(searchTerm) {
   const res = await fetch('https://graphql.anilist.co', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query, variables: { search: searchTerm } })
+    body: JSON.stringify({ query, variables: { search: searchTerm, type: anilistType } })
   });
   const data = await res.json();
   return data?.data?.Page?.media || [];
+}
+
+export async function searchAniListAnime(searchTerm) {
+  return searchAniListMedia(searchTerm, 'ANIME');
 }
 
 export async function fetchAwcProfile(username) {
@@ -210,29 +215,18 @@ export function parseAwcChallengerHtml(htmlString, challengesData = {}, badgesDa
 }
 
 // ==========================================
-// MONGODB API ENDPOINTS WITH AUTOMATIC FALLBACK
+// ==========================================
+// MONGODB API ENDPOINTS
 // ==========================================
 
 export async function fetchDbInitData() {
-  try {
-    const res = await fetch('/api/init-data');
-    if (res.ok) {
-      const data = await res.json();
-      if (data && (Array.isArray(data.challenges) || Array.isArray(data.badges))) {
-        return data;
-      }
-    }
-  } catch (e) {
-    console.warn('/api/init-data unreachable, trying /api/challenges and /api/badges...', e);
+  const res = await fetch('/api/init-data');
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || `Failed to fetch data from MongoDB (HTTP ${res.status})`);
   }
-
-  // Fallback: Query separate endpoints if /api/init-data was not implemented
-  const [challenges, badges] = await Promise.all([
-    fetch('/api/challenges').then(r => r.ok ? r.json() : []).catch(() => []),
-    fetch('/api/badges').then(r => r.ok ? r.json() : []).catch(() => [])
-  ]);
-
-  return { challenges, badges };
+  const data = await res.json();
+  return data;
 }
 
 export async function fetchDbChallenges() {

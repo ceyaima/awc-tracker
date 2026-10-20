@@ -4,6 +4,9 @@ html(lang="en")
     meta(charset="UTF-8")
     meta(name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover")
     title AWC Badge Tracker
+    meta(name="description" content="Anime & Manga Challenge (AWC) badge tracker and archive for AniList challengers")
+    meta(property="og:title" content="AWC Badge Tracker")
+    meta(property="og:description" content="Anime & Manga Challenge (AWC) badge tracker and archive for AniList challengers")
 
     // Google Fonts: Space Mono
     link(rel="preconnect" href="https://fonts.googleapis.com")
@@ -99,7 +102,7 @@ html(lang="en")
               template(v-if="activeTab === 'track'")
                 .filter-section-title > TRACK STATUS
                 .filter-checkbox-item(
-                  v-for="st in ['all', 'pinned', 'planned', 'construction', 'in progress']" 
+                  v-for="st in ['all', 'pinned', 'completed', 'has to-dos', 'planned', 'construction', 'in progress', 'reviewing']" 
                   :key="st" 
                   @click="selectedStatusFilter = st" 
                   :class="{ active: selectedStatusFilter === st }"
@@ -160,17 +163,17 @@ html(lang="en")
 
         // TRACK TAB
         section(v-if="activeTab === 'track'")
-          // SECTION 1: TIMED ARCHIVES
-          .challenge-section(v-if="filteredTimeLimitedCards.length > 0")
+          // SECTION 1: HIGH PRIORITY ARCHIVES
+          .challenge-section(v-if="filteredHighPriorityCards.length > 0")
             .section-header
-              h2.section-title > TIMED ARCHIVES
+              h2.section-title > HIGH PRIORITY ARCHIVES
 
             .track-grid
               .retro-box.track-card(
-                v-for="card in filteredTimeLimitedCards" 
+                v-for="card in filteredHighPriorityCards" 
                 :key="card.id" 
                 @contextmenu.prevent="openContextMenu($event, card, 'track')" 
-                :class="{ 'card-reviewing': card.isReviewing }"
+                :class="{ 'card-reviewing': card.isReviewing, 'card-todo-completed': card.isReviewing && card.isCompletedTodo }"
               )
                 .card-header-tags
                   .stat-pill-container(v-if="shouldShowCountPill(card)")
@@ -178,7 +181,7 @@ html(lang="en")
                     .stat-tooltip.classic-tooltip(v-if="isClassicCard(card)")
                       | W: {{ getAniListStat(card).winter }} | Sp: {{ getAniListStat(card).spring }} | Su: {{ getAniListStat(card).summer }} | F: {{ getAniListStat(card).fall }}
 
-                  .stat-pill-container(v-if="getCardTodoList(card).length > 1")
+                  .stat-pill-container(v-if="getCardTodoList(card).length > 0")
                     span.stat-pill.todo-stat-pill(@click="showTodoListSidebar = true")
                       | ⌗ {{ getCardTodoList(card).length }}
                     .stat-tooltip.todo-tooltip
@@ -187,7 +190,9 @@ html(lang="en")
                         a.todo-tooltip-link(:href="getAniListUrl(item)" target="_blank" rel="noopener noreferrer")
                           | • {{ item.animeTitle }}
 
-                  .review-tag(v-if="card.isReviewing") ★ REVIEWING
+                  template(v-if="card.isReviewing")
+                    .completed-tag(v-if="card.isCompletedTodo") ★ COMPLETED
+                    .pinned-tag(v-else) ★ PINNED
 
                 div
                   .track-card-head
@@ -195,7 +200,7 @@ html(lang="en")
                       img(v-if="card.badgeImg" :src="card.badgeImg" :alt="card.title")
                       span.thumb-na(v-else) N/A
                     div(style="overflow: hidden; flex: 1;")
-                      .track-card-title {{ card.title }}
+                      span.track-card-title {{ card.title }}
                       .track-card-subhead
                         a.track-card-link(
                           :href="card.commentLink" 
@@ -207,12 +212,12 @@ html(lang="en")
 
                   .radio-group
                     label.radio-label(
-                      v-for="st in ['planned', 'construction', 'in progress']" 
+                      v-for="st in ['planned', 'construction', 'in progress', 'reviewing']" 
                       :key="st" 
                       :class="{ 'radio-active': card.status === st }"
                     )
                       input(type="radio" :name="'st-' + card.id" :value="st" v-model="card.status" @change="persistState" style="display: none;")
-                      | {{ st === 'construction' ? 'const.' : (st === 'in progress' ? 'prog.' : 'plan') }}
+                      | {{ st === 'construction' ? 'const.' : (st === 'in progress' ? 'prog.' : (st === 'reviewing' ? 'rev.' : 'plan')) }}
 
                 .track-card-footer
                   div
@@ -226,14 +231,14 @@ html(lang="en")
                       | EDIT
 
           // SECTION DIVIDER
-          .section-divider(v-if="filteredTimeLimitedCards.length > 0 && filteredOtherCards.length > 0")
+          .section-divider(v-if="filteredHighPriorityCards.length > 0 && filteredOtherCards.length > 0")
             span.divider-line
-            span.divider-label PERMANENT CHALLENGES
+            span.divider-label STANDARD ARCHIVES
             span.divider-line
 
           // SECTION 2: PERMANENT CHALLENGES
           .challenge-section(v-if="filteredOtherCards.length > 0")
-            .section-header(v-if="filteredTimeLimitedCards.length === 0")
+            .section-header(v-if="filteredHighPriorityCards.length === 0")
               h2.section-title > PERMANENT CHALLENGES
 
             .track-grid
@@ -241,7 +246,7 @@ html(lang="en")
                 v-for="card in filteredOtherCards" 
                 :key="card.id" 
                 @contextmenu.prevent="openContextMenu($event, card, 'track')" 
-                :class="{ 'card-reviewing': card.isReviewing }"
+                :class="{ 'card-reviewing': card.isReviewing, 'card-todo-completed': card.isReviewing && card.isCompletedTodo }"
               )
                 .card-header-tags
                   .stat-pill-container(v-if="shouldShowCountPill(card)")
@@ -249,7 +254,7 @@ html(lang="en")
                     .stat-tooltip.classic-tooltip(v-if="isClassicCard(card)")
                       | W: {{ getAniListStat(card).winter }} | Sp: {{ getAniListStat(card).spring }} | Su: {{ getAniListStat(card).summer }} | F: {{ getAniListStat(card).fall }}
 
-                  .stat-pill-container(v-if="getCardTodoList(card).length > 1")
+                  .stat-pill-container(v-if="getCardTodoList(card).length > 0")
                     span.stat-pill.todo-stat-pill(@click="showTodoListSidebar = true")
                       | ⌗ {{ getCardTodoList(card).length }}
                     .stat-tooltip.todo-tooltip
@@ -258,7 +263,9 @@ html(lang="en")
                         a.todo-tooltip-link(:href="getAniListUrl(item)" target="_blank" rel="noopener noreferrer")
                           | • {{ item.animeTitle }}
 
-                  .review-tag(v-if="card.isReviewing") ★ REVIEWING
+                  template(v-if="card.isReviewing")
+                    .completed-tag(v-if="card.isCompletedTodo") ★ COMPLETED
+                    .pinned-tag(v-else) ★ PINNED
 
                 div
                   .track-card-head
@@ -266,7 +273,7 @@ html(lang="en")
                       img(v-if="card.badgeImg" :src="card.badgeImg" :alt="card.title")
                       span.thumb-na(v-else) N/A
                     div(style="overflow: hidden; flex: 1;")
-                      .track-card-title {{ card.title }}
+                      span.track-card-title {{ card.title }}
                       .track-card-subhead
                         a.track-card-link(
                           :href="card.commentLink" 
@@ -278,12 +285,12 @@ html(lang="en")
 
                   .radio-group
                     label.radio-label(
-                      v-for="st in ['planned', 'construction', 'in progress']" 
+                      v-for="st in ['planned', 'construction', 'in progress', 'reviewing']" 
                       :key="st" 
                       :class="{ 'radio-active': card.status === st }"
                     )
                       input(type="radio" :name="'st-' + card.id" :value="st" v-model="card.status" @change="persistState" style="display: none;")
-                      | {{ st === 'construction' ? 'const.' : (st === 'in progress' ? 'prog.' : 'plan') }}
+                      | {{ st === 'construction' ? 'const.' : (st === 'in progress' ? 'prog.' : (st === 'reviewing' ? 'rev.' : 'plan')) }}
 
                 .track-card-footer
                   div
@@ -314,9 +321,15 @@ html(lang="en")
         aside.todo-sidebar
           .todo-sidebar-header
             div
-              span.system-tag /// WATCH QUEUE
+              span.system-tag /// WATCH & READ QUEUE
               h2.todo-sidebar-title > to-do list
-            button.retro-btn.btn-sm(@click="showTodoListSidebar = false") ✕
+            div(style="display: flex; align-items: center; gap: 8px;")
+              button.retro-btn.btn-sm.todo-media-toggle(
+                @click="toggleTodoMediaFilter"
+                :class="'media-toggle-' + todoMediaFilter"
+                title="Switch To-Do media filter (ALL / ANIME / MANGA)"
+              ) [ {{ todoMediaFilter.toUpperCase() }} ]
+              button.retro-btn.btn-sm(@click="showTodoListSidebar = false") ✕
 
           .todo-view-tabs
             button.retro-btn.btn-sm.todo-tab-btn(
@@ -326,24 +339,28 @@ html(lang="en")
             button.retro-btn.btn-sm.todo-tab-btn(
               @click="todoViewMode = 'anime'" 
               :class="{ active: todoViewMode === 'anime' }"
-            ) [ BY ANIME ]
+            ) [ BY TITLE ]
 
           div(style="margin-bottom: 14px;")
             button.retro-btn.btn-sm(@click="openAddAnimeModal(null)" style="width: 100%; border-color: var(--retro-red); color: var(--retro-red); font-weight: bold;")
-              | + LOG ANIME TO CHALLENGE
+              | {{ todoMediaFilter === 'manga' ? '+ LOG MANGA TO CHALLENGE' : (todoMediaFilter === 'anime' ? '+ LOG ANIME TO CHALLENGE' : '+ LOG ITEM TO CHALLENGE') }}
 
           .ascii-tree
-            .tree-root > to-do list ({{ todoViewMode === 'challenge' ? 'by challenge' : 'by anime' }})
+            .tree-root > to-do list ({{ todoViewMode === 'challenge' ? 'by challenge' : 'by title' }}) [{{ todoMediaFilter.toUpperCase() }}]
 
-            div(v-if="todoList.length === 0" style="font-size: 11px; color: var(--text-muted); padding: 12px 0;")
-              | └── (no animes in to-do list)
+            div(v-if="groupedTodoList.length === 0 && todoList.length === 0" style="font-size: 11px; color: var(--text-muted); padding: 12px 0;")
+              | └── (no items in to-do list)
+
+            div(v-else-if="groupedTodoList.length === 0" style="font-size: 11px; color: var(--text-muted); padding: 12px 0;")
+              | └── (no {{ todoMediaFilter }} items in to-do list)
 
             // VIEW 1: SORTED BY CHALLENGE
             template(v-if="todoViewMode === 'challenge'")
               .tree-challenge-node(v-for="group in groupedTodoList" :key="group.threadId")
                 .tree-challenge-head
                   span.tree-glyph └──
-                  span.tree-challenge-name {{ group.challengeName }}
+                  a.tree-challenge-name-link(:href="getChallengeLink(group.threadId)" target="_blank" rel="noopener noreferrer")
+                    span.tree-challenge-name {{ group.challengeName }}
                   button.tree-add-inline(@click="openAddAnimeModal(group)") +
 
                 .tree-anime-container
@@ -376,7 +393,8 @@ html(lang="en")
                       | {{ cIdx === group.challenges.length - 1 ? '└──' : '├──' }}
 
                     .tree-anime-card
-                      span.tree-anime-title(style="color: var(--text-muted) !important;") Target: {{ c.challengeName }}
+                      a.tree-challenge-name-link(:href="getChallengeLink(c.threadId)" target="_blank" rel="noopener noreferrer")
+                        span.tree-anime-title(style="color: var(--text-muted) !important;") Target: {{ c.challengeName }}
 
       // MODAL: IMPORT FROM AWC PROFILE (Inside #app)
       .modal-backdrop(v-if="showAwcImportModal" @click.self="showAwcImportModal = false")
@@ -446,24 +464,24 @@ html(lang="en")
               button.retro-btn.btn-sm(type="submit" style="border-color: var(--retro-mauve); color: var(--retro-mauve); font-weight: bold;")
                 | LOGIN / SWITCH
 
-      // MODAL: ADD ANIME TO TO-DO (Inside #app)
+      // MODAL: ADD ANIME/MANGA TO TO-DO (Inside #app)
       .modal-backdrop(v-if="showAddAnimeModal" @click.self="showAddAnimeModal = false")
         .retro-box.modal-window
-          h3.modal-title(style="color: var(--retro-red);") > Log Anime to Challenge
-          p.modal-desc Select challenge and search AniList for anime:
+          h3.modal-title(style="color: var(--retro-red);") > Log {{ currentTargetMediaType.toUpperCase() }} to Challenge
+          p.modal-desc Select challenge and search AniList for {{ currentTargetMediaType }}:
 
           form(@submit.prevent="proceedAddAnime")
             label(style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;") TARGET CHALLENGE
             select.retro-input(v-model="addAnimeForm.threadId" style="width: 100%; font-size: 11px; margin-bottom: 12px;")
               option(v-for="card in trackCards" :key="card.id" :value="card.threadId")
-                | {{ card.title + ' (#' + card.threadId + ')' }}
+                | {{ card.title + ' (#' + card.threadId + ') [' + (getCardMediaType(card) || 'anime').toUpperCase() + ']' }}
 
-            label(style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;") SEARCH ANILIST ANIME TITLE
+            label(style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px;") SEARCH ANILIST {{ currentTargetMediaType.toUpperCase() }} TITLE
             div(style="display: flex; gap: 6px;")
               input.retro-input(
                 v-model="addAnimeForm.animeTitle" 
                 type="text" 
-                placeholder="e.g. Sousou no Frieren" 
+                :placeholder="currentTargetMediaType === 'manga' ? 'e.g. Berserk' : 'e.g. Sousou no Frieren'" 
                 style="flex: 1; font-size: 12px;" 
                 @input="onSearchAnimeInput"
               )
@@ -500,7 +518,7 @@ html(lang="en")
             .modal-actions
               button.retro-btn.btn-sm(type="button" @click="showAddAnimeModal = false") CANCEL
               button.retro-btn.btn-sm(type="submit" style="border-color: var(--retro-red); color: var(--retro-red); font-weight: bold;")
-                | ADD ANIME
+                | + ADD {{ currentTargetMediaType.toUpperCase() }}
 
       // MODAL: EDIT DISPLAY BADGE LINK (Inside #app)
       .modal-backdrop(v-if="showEditBadgeModal" @click.self="showEditBadgeModal = false")
@@ -655,8 +673,8 @@ html(lang="en")
             @click="toggleReviewCard(contextMenu.targetItem)" 
             style="display: flex; justify-content: space-between;"
           )
-            span REVIEWING
-            span(v-if="contextMenu.targetItem && contextMenu.targetItem.isReviewing" style="color: var(--retro-mauve);") ★
+            span {{ (contextMenu.targetItem && contextMenu.targetItem.isCompletedTodo) ? 'COMPLETED (PIN)' : 'PINNED' }}
+            span(v-if="contextMenu.targetItem && contextMenu.targetItem.isReviewing" :style="{ color: (contextMenu.targetItem && contextMenu.targetItem.isCompletedTodo) ? 'var(--retro-green)' : 'var(--retro-mauve)' }") ★
           .context-item(
             @click="openAddAnimeModal(contextMenu.targetItem); closeContextMenu();" 
             style="color: var(--retro-red);"

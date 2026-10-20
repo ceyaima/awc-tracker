@@ -42,12 +42,12 @@
 /* Track Grid & Card Body */
 .track-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
 }
 
 .track-card {
-  padding: 16px;
+  padding: 10px 12px;
   border-radius: 4px;
   position: relative;
   display: flex;
@@ -58,6 +58,11 @@
 .card-reviewing {
   border-color: var(--retro-mauve);
   box-shadow: 4px 4px 0px rgba(203, 166, 247, 0.15);
+}
+
+.card-todo-completed {
+  border-color: var(--retro-green) !important;
+  box-shadow: 4px 4px 0px rgba(166, 227, 161, 0.22) !important;
 }
 
 /* Header Pins (20px Centered) */
@@ -113,8 +118,25 @@
   color: var(--crust) !important;
 }
 
-.review-tag {
+.review-tag, .pinned-tag {
   background: var(--retro-mauve);
+  color: var(--crust);
+  font-size: 9px;
+  font-weight: 700;
+  height: 20px;
+  padding: 0 6px;
+  border: 1px solid var(--crust);
+  letter-spacing: 1px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  box-shadow: 2px 2px 0px var(--crust);
+  box-sizing: border-box;
+}
+
+.completed-tag {
+  background: var(--retro-green);
   color: var(--crust);
   font-size: 9px;
   font-weight: 700;
@@ -218,13 +240,19 @@
 .track-thumb img { max-width: 46px; max-height: 46px; object-fit: contain; }
 .thumb-na { font-size: 8px; color: var(--text-muted); }
 
-.track-card-title {
+.track-card-title, .track-card-title-link {
   font-size: 13px;
   font-weight: 700;
   color: var(--text-main);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-decoration: none;
+  display: block;
+}
+.track-card-title-link:hover {
+  color: var(--retro-cyan);
+  text-decoration: underline;
 }
 
 .track-card-subhead {
@@ -260,7 +288,7 @@
   border: 1px solid var(--border);
   padding: 4px;
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: repeat(4, 1fr);
   gap: 4px;
   margin-bottom: 8px;
 }
