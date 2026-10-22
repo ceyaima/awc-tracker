@@ -12,8 +12,8 @@ const path = require('path');
 // Fail fast on database queries if MongoDB is not connected
 mongoose.set('bufferCommands', false);
 
-const Badge = require('./models/Badge');
-const Challenge = require('./models/Challenge');
+const Badge = require('../models/Badge');
+const Challenge = require('../models/Challenge');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
