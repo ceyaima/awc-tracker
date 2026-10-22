@@ -48,22 +48,11 @@ if (mongoUri) {
   console.warn('⚠️ No MONGODB_URI or MONGO_URI specified in environment.');
 }
 
-// Fallback dataset when MongoDB is offline / disconnected
-const fallbackChallenges = [
-  { challengeId: '67067', media: 'anime', name: 'Gacha Challenge', points: 10, category: 'Gacha', type: 'single' },
-  { challengeId: '69234', media: 'anime', name: 'Anime Milestone Challenge', points: 20, category: 'Milestone', type: 'single' }
-];
-
-const fallbackBadges = [
-  { badgeId: '67067', media: 'anime', images: ['https://awc.moe/badges/67067.png'] }
-];
-
 // 1. Unified init endpoint
 app.get('/api/init-data', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
-      console.warn('[AI Studio] MongoDB database is offline — using fallback initial data');
-      return res.json({ challenges: fallbackChallenges, badges: fallbackBadges, source: 'fallback (offline)' });
+      return res.status(503).json({ error: 'MongoDB database is not connected' });
     }
     const [challenges, badges] = await Promise.all([
       Challenge.find({}).lean(),
@@ -71,8 +60,8 @@ app.get('/api/init-data', async (req, res) => {
     ]);
     return res.json({ challenges, badges, source: 'mongodb' });
   } catch (err) {
-    console.warn('MongoDB /api/init-data query fallback:', err.message);
-    return res.json({ challenges: fallbackChallenges, badges: fallbackBadges, source: 'fallback (offline)' });
+    console.error('MongoDB /api/init-data query failed:', err.message);
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -80,26 +69,26 @@ app.get('/api/init-data', async (req, res) => {
 app.get('/api/challenges', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
-      return res.json(fallbackChallenges);
+      return res.status(503).json({ error: 'MongoDB database is not connected' });
     }
     const challenges = await Challenge.find({}).lean();
     return res.json(challenges);
   } catch (e) {
-    console.warn('MongoDB /api/challenges query fallback:', e.message);
-    return res.json(fallbackChallenges);
+    console.error('MongoDB /api/challenges query failed:', e.message);
+    return res.status(500).json({ error: e.message });
   }
 });
 
 app.get('/api/badges', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
-      return res.json(fallbackBadges);
+      return res.status(503).json({ error: 'MongoDB database is not connected' });
     }
     const badges = await Badge.find({}).lean();
     return res.json(badges);
   } catch (e) {
-    console.warn('MongoDB /api/badges query fallback:', e.message);
-    return res.json(fallbackBadges);
+    console.error('MongoDB /api/badges query failed:', e.message);
+    return res.status(500).json({ error: e.message });
   }
 });
 
@@ -108,12 +97,10 @@ app.get('/api/health', async (req, res) => {
   try {
     const isReady = mongoose.connection.readyState === 1;
     res.json({
-      status: 'ok',
       mongoReadyState: mongoose.connection.readyState,
       dbName: mongoose.connection.name || null,
-      challengesCount: isReady ? await Challenge.countDocuments() : fallbackChallenges.length,
-      badgesCount: isReady ? await Badge.countDocuments() : fallbackBadges.length,
-      mode: isReady ? 'mongodb' : 'in-memory-fallback'
+      challengesCount: isReady ? await Challenge.countDocuments() : 0,
+      badgesCount: isReady ? await Badge.countDocuments() : 0
     });
   } catch (err) {
     res.status(500).json({
