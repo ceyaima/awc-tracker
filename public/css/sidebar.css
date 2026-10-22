@@ -17,12 +17,30 @@
   flex-direction: column;
   padding: 24px 20px;
   overflow-x: hidden;
-  animation: slideIn 0.18s ease-out;
 }
 
-@keyframes slideIn {
-  from { transform: translateX(-100%); }
-  to { transform: translateX(0); }
+/* Vue Transition for todo-drawer */
+.todo-drawer-enter-active,
+.todo-drawer-leave-active {
+  transition: opacity 0.22s ease;
+}
+.todo-drawer-enter-active .todo-sidebar {
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.todo-drawer-leave-active .todo-sidebar {
+  transition: transform 0.2s cubic-bezier(0.7, 0, 0.84, 0);
+}
+.todo-drawer-enter-from {
+  opacity: 0;
+}
+.todo-drawer-enter-from .todo-sidebar {
+  transform: translateX(-100%);
+}
+.todo-drawer-leave-to {
+  opacity: 0;
+}
+.todo-drawer-leave-to .todo-sidebar {
+  transform: translateX(-100%);
 }
 
 .todo-sidebar-header {

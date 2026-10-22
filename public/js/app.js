@@ -42,22 +42,103 @@ createApp({
     const activeTab = ref('display');
     const searchQuery = ref('');
 
-    // Master Filter Popover
+    // Sorting State
+    const sortBy = ref('default'); // 'default', 'name', 'category', 'todos'
+
+    // Master Filter Popover & Searchable Dropdowns
     const showMasterFilterMenu = ref(false);
     const selectedMediaTypeFilter = ref('all');
     const selectedCategoryFilter = ref('all');
     const selectedStatusFilter = ref('all');
+    const filterHasTodos = ref(false);
+
+    const openDropdown = ref('');
+    const toggleFilterDropdown = (name) => {
+      openDropdown.value = openDropdown.value === name ? '' : name;
+    };
+
+    const mediaFilterSearch = ref('');
+    const statusFilterSearch = ref('');
+    const categoryFilterSearch = ref('');
+
+    const filteredMediaOptions = computed(() => {
+      const options = ['all', 'anime', 'manga'];
+      if (!mediaFilterSearch.value.trim()) return options;
+      const q = mediaFilterSearch.value.toLowerCase().trim();
+      return options.filter(o => o.includes(q));
+    });
+
+    const trackStatusOptions = ['all', 'reviewing', 'in progress', 'construction', 'planning'];
+
+    const filteredStatusOptions = computed(() => {
+      if (!statusFilterSearch.value.trim()) return trackStatusOptions;
+      const q = statusFilterSearch.value.toLowerCase().trim();
+      return trackStatusOptions.filter(st => st.includes(q));
+    });
+
+    const filteredCategoryOptions = computed(() => {
+      const cats = availableCategories.value;
+      if (!categoryFilterSearch.value.trim()) return cats;
+      const q = categoryFilterSearch.value.toLowerCase().trim();
+      return cats.filter(c => c.toLowerCase().includes(q));
+    });
 
     const isAnyFilterActive = computed(() => {
       return selectedMediaTypeFilter.value !== 'all' || 
              selectedCategoryFilter.value !== 'all' || 
-             selectedStatusFilter.value !== 'all';
+             selectedStatusFilter.value !== 'all' ||
+             filterHasTodos.value ||
+             searchQuery.value.trim().length > 0;
     });
 
     const toggleMasterFilterMenu = () => {
       contextMenu.value.visible = false;
       linkContextMenu.value.visible = false;
       showMasterFilterMenu.value = !showMasterFilterMenu.value;
+      if (!showMasterFilterMenu.value) openDropdown.value = '';
+    };
+
+    // Notepad State
+    const showNotepadDrawer = ref(false);
+    const notepadContent = ref('');
+
+    const toggleNotepad = () => {
+      showNotepadDrawer.value = !showNotepadDrawer.value;
+    };
+
+    const notepadWordCount = computed(() => {
+      const text = notepadContent.value.trim();
+      if (!text) return 0;
+      return text.split(/\s+/).filter(Boolean).length;
+    });
+
+    const saveNotepad = () => {
+      try {
+        const key = 'awc_notepad_' + (currentUser.value ? currentUser.value.toLowerCase().trim() : 'guest');
+        localStorage.setItem(key, notepadContent.value);
+      } catch (e) {}
+      persistState();
+    };
+
+    const copyNotepadText = async () => {
+      if (!notepadContent.value) return;
+      try {
+        await navigator.clipboard.writeText(notepadContent.value);
+      } catch (e) {
+        const input = document.createElement('textarea');
+        input.value = notepadContent.value;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        document.body.removeChild(input);
+      }
+    };
+
+    const clearNotepadText = () => {
+      if (confirm('Clear all text from notepad?')) {
+        notepadContent.value = '';
+        saveNotepad();
+      }
     };
 
     const profile = ref({ place: '#---', rank: 'Rank', points: '0 pts' });
@@ -156,6 +237,15 @@ createApp({
       newCommentInput.value = '';
       inputError.value = '';
       showAddModal.value = true;
+      Vue.nextTick(() => {
+        setTimeout(() => {
+          const el = document.getElementById('addCommentInput') || document.querySelector('.modal-window input.retro-input');
+          if (el) {
+            el.focus();
+            el.select();
+          }
+        }, 40);
+      });
     };
 
     const proceedAdd = () => {
@@ -277,7 +367,12 @@ createApp({
       selectedMediaTypeFilter.value = 'all';
       selectedCategoryFilter.value = 'all';
       selectedStatusFilter.value = 'all';
+      filterHasTodos.value = false;
       searchQuery.value = '';
+      mediaFilterSearch.value = '';
+      statusFilterSearch.value = '';
+      categoryFilterSearch.value = '';
+      openDropdown.value = '';
     };
 
     const onMediaTypeChange = () => {
@@ -391,6 +486,7 @@ createApp({
       allUsersData.value[userKey].display = displayBadges.value;
       allUsersData.value[userKey].track = trackCards.value;
       allUsersData.value[userKey].todoList = todoList.value;
+      allUsersData.value[userKey].notepad = notepadContent.value;
 
       await writeDataToFile({
         lastActiveUser: currentUser.value,
@@ -407,6 +503,7 @@ createApp({
       displayBadges.value = uData.display || [];
       trackCards.value = uData.track || [];
       todoList.value = uData.todoList || [];
+      notepadContent.value = uData.notepad !== undefined ? uData.notepad : (localStorage.getItem('awc_notepad_' + userKey) || '');
       userAnimeList.value = [];
 
       trackCards.value.forEach(card => {
@@ -418,7 +515,11 @@ createApp({
 
       const awcStats = await fetchAwcProfile(username);
       if (awcStats) {
-        if (awcStats.place) profile.value.place = awcStats.place;
+        if (awcStats.place && awcStats.place !== '#---' && awcStats.place !== '#1') {
+          profile.value.place = awcStats.place;
+        } else if (awcStats.place && (!profile.value.place || profile.value.place === '#---')) {
+          profile.value.place = awcStats.place;
+        }
         if (awcStats.rank) profile.value.rank = awcStats.rank;
         if (awcStats.points) profile.value.points = awcStats.points;
         persistState();
@@ -532,22 +633,41 @@ createApp({
       if (!htmlContent) {
         awcImportLoading.value = true;
         const target = awcImportUrl.value.trim();
-        const proxies = [
-          target,
-          `https://corsproxy.io/?${encodeURIComponent(target)}`,
-          `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`
-        ];
-        for (const url of proxies) {
+
+        // 1. Try server proxy first to bypass CORS
+        const userMatch = target.match(/challenger\/([^/?#]+)/i);
+        if (userMatch) {
           try {
-            const res = await fetch(url);
-            if (res.ok) {
-              const text = await res.text();
+            const srvRes = await fetch(`/api/awc-challenger/${encodeURIComponent(userMatch[1])}`);
+            if (srvRes.ok) {
+              const text = await srvRes.text();
               if (text && text.length > 200) {
                 htmlContent = text;
-                break;
               }
             }
-          } catch (e) {}
+          } catch (e) {
+            console.warn('Server AWC challenger proxy fallback:', e);
+          }
+        }
+
+        if (!htmlContent) {
+          const proxies = [
+            target,
+            `https://corsproxy.io/?${encodeURIComponent(target)}`,
+            `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`
+          ];
+          for (const url of proxies) {
+            try {
+              const res = await fetch(url);
+              if (res.ok) {
+                const text = await res.text();
+                if (text && text.length > 200) {
+                  htmlContent = text;
+                  break;
+                }
+              }
+            } catch (e) {}
+          }
         }
         awcImportLoading.value = false;
       }
@@ -610,11 +730,14 @@ createApp({
       } else if (e.key === 'x' || e.key === 'X') {
         e.preventDefault();
         showTodoListSidebar.value = !showTodoListSidebar.value;
+      } else if (e.key === 'v' || e.key === 'V') {
+        e.preventDefault();
+        toggleNotepad();
       }
     };
 
     const filteredDisplayBadges = computed(() => {
-      let badges = displayBadges.value;
+      let badges = [...displayBadges.value];
       if (searchQuery.value.trim()) {
         const q = searchQuery.value.toLowerCase().trim();
         badges = badges.filter(b => b.title.toLowerCase().includes(q));
@@ -628,6 +751,17 @@ createApp({
           return cat.toLowerCase() === selectedCategoryFilter.value.toLowerCase();
         });
       }
+
+      if (sortBy.value === 'name') {
+        badges.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+      } else if (sortBy.value === 'category') {
+        badges.sort((a, b) => {
+          const catA = a.category || challengesData.value[a.threadId]?.category || 'Other';
+          const catB = b.category || challengesData.value[b.threadId]?.category || 'Other';
+          return catA.localeCompare(catB);
+        });
+      }
+
       return badges;
     });
 
@@ -640,19 +774,31 @@ createApp({
       if (selectedMediaTypeFilter.value !== 'all') {
         cards = cards.filter(c => getCardMediaType(c, challengesData.value) === selectedMediaTypeFilter.value);
       }
-      if (selectedStatusFilter.value === 'pinned') {
-        cards = cards.filter(c => c.isReviewing && !c.isCompletedTodo);
-      } else if (selectedStatusFilter.value === 'completed') {
-        cards = cards.filter(c => c.isReviewing && c.isCompletedTodo);
-      } else if (selectedStatusFilter.value === 'has to-dos') {
+      if (['reviewing', 'in progress', 'construction', 'planned', 'planning'].includes(selectedStatusFilter.value)) {
+        cards = cards.filter(c => {
+          const st = (c.status || '').toLowerCase();
+          const target = selectedStatusFilter.value === 'planning' ? 'planned' : selectedStatusFilter.value;
+          return st === target || st === selectedStatusFilter.value;
+        });
+      }
+      if (filterHasTodos.value) {
         cards = cards.filter(c => getCardTodoList(c).length > 0);
-      } else if (['planned', 'construction', 'in progress', 'reviewing'].includes(selectedStatusFilter.value)) {
-        cards = cards.filter(c => c.status === selectedStatusFilter.value);
       }
       if (selectedCategoryFilter.value !== 'all') {
         cards = cards.filter(c => getCardCategory(c, challengesData.value).toLowerCase() === selectedCategoryFilter.value.toLowerCase());
       }
-      return cards.sort((a, b) => (b.isReviewing === true ? 1 : 0) - (a.isReviewing === true ? 1 : 0));
+
+      if (sortBy.value === 'name') {
+        cards.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+      } else if (sortBy.value === 'category') {
+        cards.sort((a, b) => getCardCategory(a, challengesData.value).localeCompare(getCardCategory(b, challengesData.value)));
+      } else if (sortBy.value === 'todos') {
+        cards.sort((a, b) => getCardTodoList(b).length - getCardTodoList(a).length);
+      } else {
+        cards.sort((a, b) => (b.isReviewing === true ? 1 : 0) - (a.isReviewing === true ? 1 : 0));
+      }
+
+      return cards;
     });
 
     const filteredHighPriorityCards = computed(() => filteredTrackCards.value.filter(c => isHighPriorityCard(c, challengesData.value)));
@@ -1357,7 +1503,27 @@ createApp({
       onBodyContextMenu,
       toggleReviewCard,
       completeCard,
-      persistState
+      persistState,
+      // Sorting & Filters
+      sortBy,
+      filterHasTodos,
+      openDropdown,
+      toggleFilterDropdown,
+      mediaFilterSearch,
+      statusFilterSearch,
+      categoryFilterSearch,
+      filteredMediaOptions,
+      filteredStatusOptions,
+      filteredCategoryOptions,
+      resetAllFilters,
+      // Notepad
+      showNotepadDrawer,
+      notepadContent,
+      toggleNotepad,
+      notepadWordCount,
+      saveNotepad,
+      copyNotepadText,
+      clearNotepadText
     };
   }
 }).mount('#app');

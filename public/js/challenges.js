@@ -134,28 +134,51 @@ export function calculateAniListStat(card, userAnimeList, challengesData) {
   // 4. Classic
   if (isClassicCard(card, challengesData)) {
     const targetYear = extractYearFromTitle(card.title);
-    if (!targetYear) return { total: 0, winter: 0, spring: 0, summer: 0, fall: 0 };
+    if (!targetYear) return { total: 0, winter: 0, spring: 0, summer: 0, fall: 0, winterAnimes: [], springAnimes: [], summerAnimes: [], fallAnimes: [] };
 
     let total = 0, winter = 0, spring = 0, summer = 0, fall = 0;
+    const winterAnimes = [];
+    const springAnimes = [];
+    const summerAnimes = [];
+    const fallAnimes = [];
+
     userAnimeList.forEach(entry => {
       if (entry.media?.startDate?.year === targetYear) {
         total++;
+        const animeName = entry.media?.title?.english || entry.media?.title?.romaji || (entry.media?.id ? `AniList #${entry.media.id}` : 'Unknown Title');
         const s = (entry.media.season || '').toUpperCase();
-        if (s === 'WINTER') winter++;
-        else if (s === 'SPRING') spring++;
-        else if (s === 'SUMMER') summer++;
-        else if (s === 'FALL') fall++;
-        else {
+        if (s === 'WINTER') {
+          winter++;
+          winterAnimes.push(animeName);
+        } else if (s === 'SPRING') {
+          spring++;
+          springAnimes.push(animeName);
+        } else if (s === 'SUMMER') {
+          summer++;
+          summerAnimes.push(animeName);
+        } else if (s === 'FALL') {
+          fall++;
+          fallAnimes.push(animeName);
+        } else {
           const m = entry.media?.startDate?.month;
-          if (m >= 1 && m <= 3) winter++;
-          else if (m >= 4 && m <= 6) spring++;
-          else if (m >= 7 && m <= 9) summer++;
-          else if (m >= 10 && m <= 12) fall++;
+          if (m >= 1 && m <= 3) {
+            winter++;
+            winterAnimes.push(animeName);
+          } else if (m >= 4 && m <= 6) {
+            spring++;
+            springAnimes.push(animeName);
+          } else if (m >= 7 && m <= 9) {
+            summer++;
+            summerAnimes.push(animeName);
+          } else if (m >= 10 && m <= 12) {
+            fall++;
+            fallAnimes.push(animeName);
+          }
         }
       }
     });
-    return { total, winter, spring, summer, fall };
+    return { total, winter, spring, summer, fall, winterAnimes, springAnimes, summerAnimes, fallAnimes };
   }
 
-  return { total: 0, winter: 0, spring: 0, summer: 0, fall: 0 };
+  return { total: 0, winter: 0, spring: 0, summer: 0, fall: 0, winterAnimes: [], springAnimes: [], summerAnimes: [], fallAnimes: [] };
 }

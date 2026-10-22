@@ -133,3 +133,186 @@
   line-height: 1;
   font-size: 26px;
 }
+
+/* Bottom Thin Arrow Tab for Notepad */
+.notepad-tab-container {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 120;
+}
+
+.notepad-tab-btn {
+  padding: 3px 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+  color: var(--retro-cyan);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.4);
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.notepad-tab-btn:hover {
+  background: var(--card);
+  border-color: var(--retro-cyan);
+  color: var(--retro-lavender);
+  transform: translateY(-1px);
+}
+
+.notepad-tab-btn.open {
+  border-color: var(--retro-mauve);
+  color: var(--retro-mauve);
+  background: var(--crust);
+}
+
+.notepad-tab-arrow {
+  font-size: 8px;
+}
+
+/* Notepad Drawer & Backdrop */
+.notepad-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  z-index: 160;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+}
+
+.notepad-drawer {
+  width: 60vw;
+  max-width: 900px;
+  min-width: 320px;
+  height: 68vh;
+  background: var(--panel);
+  border: 2px solid var(--retro-cyan);
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  box-shadow: 0 -6px 25px rgba(0, 0, 0, 0.6), 6px 0px 0px var(--crust);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.notepad-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  border-bottom: 2px solid var(--border);
+  background: var(--crust);
+}
+
+.notepad-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.notepad-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--retro-cyan);
+  margin: 0;
+  letter-spacing: 1px;
+}
+
+.notepad-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notepad-count {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.notepad-body {
+  flex: 1;
+  display: flex;
+  padding: 12px;
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.notepad-textarea {
+  width: 100%;
+  height: 100%;
+  resize: none;
+  background: var(--crust);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.6;
+  padding: 12px;
+  outline: none;
+  border-radius: 2px;
+  box-sizing: border-box;
+}
+
+.notepad-textarea:focus {
+  border-color: var(--retro-cyan);
+}
+
+.notepad-footer {
+  padding: 6px 16px;
+  background: var(--crust);
+  border-top: 1px solid var(--border);
+  font-size: 9px;
+  color: var(--text-muted);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.notepad-hint {
+  font-family: monospace;
+}
+
+/* Notepad Drawer Transitions */
+.notepad-drawer-enter-active,
+.notepad-drawer-leave-active {
+  transition: opacity 0.22s ease;
+}
+.notepad-drawer-enter-active .notepad-drawer {
+  transition: transform 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.notepad-drawer-leave-active .notepad-drawer {
+  transition: transform 0.2s cubic-bezier(0.7, 0, 0.84, 0);
+}
+.notepad-drawer-enter-from {
+  opacity: 0;
+}
+.notepad-drawer-enter-from .notepad-drawer {
+  transform: translateY(100%);
+}
+.notepad-drawer-leave-to {
+  opacity: 0;
+}
+.notepad-drawer-leave-to .notepad-drawer {
+  transform: translateY(100%);
+}
+
+@media (max-width: 768px) {
+  .notepad-drawer {
+    width: 100vw;
+    height: 68vh;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+}

@@ -52,15 +52,21 @@ html(lang="en")
 
       // 2. Controls Section
       .retro-box.controls-bar
-        // Left: Search Input
-        .search-wrap
-          input.retro-input(
-            v-model="searchQuery" 
-            type="text" 
-            placeholder="SEARCH BADGE..." 
-            style="width: 100%; font-size: 11px;"
-          )
-          span.clear-search(v-if="searchQuery" @click="searchQuery = ''") ✕
+        // Left: Search Input & Clear Button (Display Tab)
+        .search-area
+          .search-wrap
+            input.retro-input(
+              v-model="searchQuery" 
+              type="text" 
+              placeholder="SEARCH BADGE..." 
+              style="width: 100%; font-size: 11px;"
+            )
+            span.clear-search(v-if="searchQuery" @click="searchQuery = ''") ✕
+          button.retro-btn.btn-sm.retro-btn-danger(
+            v-if="activeTab === 'display'" 
+            @click="showClearDisplayModal = true" 
+            style="white-space: nowrap; padding: 5px 9px;"
+          ) CLEAR
 
         // Center: Tab Navigation
         .nav-pill
@@ -73,52 +79,117 @@ html(lang="en")
             :class="{ active: activeTab === 'track' }"
           ) [ TRACK ]
 
-        // Right: Action Icons (Merged Master Filter, AWC Sync, Export, Import)
+        // Right: Action Icons (Sort, Filter, AWC Sync, Export, Import)
         .action-buttons
-          button.retro-btn.btn-sm.retro-btn-danger(v-if="activeTab === 'display'" @click="showClearDisplayModal = true")
-            | CLEAR
+          // SORT BY DROPDOWN
+          .sort-wrap
+            span.sort-label SORT:
+            select.sort-select(v-model="sortBy")
+              option(value="default") DEFAULT
+              option(value="name") NAME (A-Z)
+              option(value="category") CATEGORY
+              option(value="todos" v-if="activeTab === 'track'") TO-DOS
 
           // MASTER FILTER ICON BUTTON
           div(style="position: relative;")
             button.retro-btn.btn-icon(
               @click.stop="toggleMasterFilterMenu" 
               :class="{ active: isAnyFilterActive }"
+              title="Filter Badges"
             )
               svg(width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square")
                 polygon(points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3")
 
-            // MULTI-SECTION CHECKBOX-STYLE FILTER POPOVER
+            // SEARCHABLE DROPDOWNS MASTER FILTER POPOVER
             .retro-box.master-filter-menu(v-if="showMasterFilterMenu" @click.stop)
-              .filter-section-title > MEDIA TYPE
-              .filter-checkbox-item(
-                v-for="m in ['all', 'anime', 'manga']" 
-                :key="m" 
-                @click="setMediaTypeFilter(m)" 
-                :class="{ active: selectedMediaTypeFilter === m }"
-              )
-                span {{ m.toUpperCase() }}
-                span.filter-check-box {{ selectedMediaTypeFilter === m ? '✓' : '' }}
+              .filter-menu-header
+                span.filter-menu-title /// FILTER DATABASE
+                button.retro-btn.btn-sm.filter-reset-btn(@click="resetAllFilters") ↺ RESET ALL
 
+              // 1. HAS TO-DO'S CHECKBOX (outside track status filter)
               template(v-if="activeTab === 'track'")
-                .filter-section-title > TRACK STATUS
-                .filter-checkbox-item(
-                  v-for="st in ['all', 'pinned', 'completed', 'has to-dos', 'planned', 'construction', 'in progress', 'reviewing']" 
-                  :key="st" 
-                  @click="selectedStatusFilter = st" 
-                  :class="{ active: selectedStatusFilter === st }"
+                .filter-todo-box-item(
+                  @click="filterHasTodos = !filterHasTodos" 
+                  :class="{ active: filterHasTodos }"
                 )
-                  span {{ st.toUpperCase() }}
-                  span.filter-check-box {{ selectedStatusFilter === st ? '✓' : '' }}
+                  span.filter-check-box {{ filterHasTodos ? '✓' : '' }}
+                  span.filter-todo-label HAS TO-DO'S ONLY
 
-              .filter-section-title > CATEGORY ({{ selectedMediaTypeFilter.toUpperCase() }})
-              .filter-checkbox-item(
-                v-for="cat in availableCategories" 
-                :key="cat" 
-                @click="selectedCategoryFilter = cat" 
-                :class="{ active: selectedCategoryFilter.toLowerCase() === cat.toLowerCase() }"
-              )
-                span {{ cat.toUpperCase() }}
-                span.filter-check-box {{ selectedCategoryFilter.toLowerCase() === cat.toLowerCase() ? '✓' : '' }}
+              // 2. MEDIA TYPE SEARCHABLE DROPDOWN
+              .filter-dropdown-block
+                .filter-section-title > MEDIA TYPE
+                .searchable-dropdown
+                  button.retro-dropdown-toggle(type="button" @click="toggleFilterDropdown('media')")
+                    span.dropdown-val {{ selectedMediaTypeFilter.toUpperCase() }}
+                    span.dropdown-arrow {{ openDropdown === 'media' ? '▲' : '▼' }}
+                  .dropdown-panel(v-if="openDropdown === 'media'")
+                    input.retro-input.dropdown-search-input(
+                      v-model="mediaFilterSearch" 
+                      type="text" 
+                      placeholder="Search media type..." 
+                      @click.stop
+                    )
+                    .dropdown-options-list
+                      .dropdown-option(
+                        v-for="m in filteredMediaOptions" 
+                        :key="m" 
+                        @click="setMediaTypeFilter(m); openDropdown = ''"
+                        :class="{ selected: selectedMediaTypeFilter === m }"
+                      )
+                        span {{ m.toUpperCase() }}
+                        span.check-mark(v-if="selectedMediaTypeFilter === m") ✓
+
+              // 3. TRACK STATUS SEARCHABLE DROPDOWN (Descending: reviewing, in progress, construction, planning)
+              template(v-if="activeTab === 'track'")
+                .filter-dropdown-block
+                  .filter-section-title > TRACK STATUS
+                  .searchable-dropdown
+                    button.retro-dropdown-toggle(type="button" @click="toggleFilterDropdown('status')")
+                      span.dropdown-val {{ selectedStatusFilter.toUpperCase() }}
+                      span.dropdown-arrow {{ openDropdown === 'status' ? '▲' : '▼' }}
+                    .dropdown-panel(v-if="openDropdown === 'status'")
+                      input.retro-input.dropdown-search-input(
+                        v-model="statusFilterSearch" 
+                        type="text" 
+                        placeholder="Search status..." 
+                        @click.stop
+                      )
+                      .dropdown-options-list
+                        .dropdown-option(
+                          v-for="st in filteredStatusOptions" 
+                          :key="st" 
+                          @click="selectedStatusFilter = st; openDropdown = ''"
+                          :class="{ selected: selectedStatusFilter === st }"
+                        )
+                          span {{ st.toUpperCase() }}
+                          span.check-mark(v-if="selectedStatusFilter === st") ✓
+
+              // 4. CATEGORY SEARCHABLE DROPDOWN
+              .filter-dropdown-block
+                .filter-section-title > CATEGORY ({{ selectedMediaTypeFilter.toUpperCase() }})
+                .searchable-dropdown
+                  button.retro-dropdown-toggle(type="button" @click="toggleFilterDropdown('category')")
+                    span.dropdown-val {{ selectedCategoryFilter.toUpperCase() }}
+                    span.dropdown-arrow {{ openDropdown === 'category' ? '▲' : '▼' }}
+                  .dropdown-panel(v-if="openDropdown === 'category'")
+                    input.retro-input.dropdown-search-input(
+                      v-model="categoryFilterSearch" 
+                      type="text" 
+                      placeholder="Search category..." 
+                      @click.stop
+                    )
+                    .dropdown-options-list
+                      .dropdown-option(
+                        v-for="cat in filteredCategoryOptions" 
+                        :key="cat" 
+                        @click="selectedCategoryFilter = cat; openDropdown = ''"
+                        :class="{ selected: selectedCategoryFilter.toLowerCase() === cat.toLowerCase() }"
+                      )
+                        span {{ cat.toUpperCase() }}
+                        span.check-mark(v-if="selectedCategoryFilter.toLowerCase() === cat.toLowerCase()") ✓
+
+              button.retro-btn.btn-sm.retro-btn-reset-full(@click="resetAllFilters")
+                | ↺ RESET ALL FILTERS
 
           // AWC PROFILE IMPORT LINK ICON BUTTON
           button.retro-btn.btn-icon(@click="openAwcImportModal")
@@ -179,7 +250,48 @@ html(lang="en")
                   .stat-pill-container(v-if="shouldShowCountPill(card)")
                     span.stat-pill ⌗ {{ getAniListStat(card).total }}
                     .stat-tooltip.classic-tooltip(v-if="isClassicCard(card)")
-                      | W: {{ getAniListStat(card).winter }} | Sp: {{ getAniListStat(card).spring }} | Su: {{ getAniListStat(card).summer }} | F: {{ getAniListStat(card).fall }}
+                      .classic-seasons-grid
+                        .season-stat-item
+                          span.season-code W:
+                          span.season-count {{ getAniListStat(card).winter }}
+                          .season-popover(v-if="getAniListStat(card).winterAnimes && getAniListStat(card).winterAnimes.length > 0")
+                            .season-popover-title WINTER ({{ getAniListStat(card).winter }}):
+                            .season-popover-anime(v-for="(title, idx) in getAniListStat(card).winterAnimes" :key="idx") • {{ title }}
+                          .season-popover(v-else)
+                            .season-popover-title WINTER: 0 ANIMES
+
+                        span.season-divider |
+
+                        .season-stat-item
+                          span.season-code Sp:
+                          span.season-count {{ getAniListStat(card).spring }}
+                          .season-popover(v-if="getAniListStat(card).springAnimes && getAniListStat(card).springAnimes.length > 0")
+                            .season-popover-title SPRING ({{ getAniListStat(card).spring }}):
+                            .season-popover-anime(v-for="(title, idx) in getAniListStat(card).springAnimes" :key="idx") • {{ title }}
+                          .season-popover(v-else)
+                            .season-popover-title SPRING: 0 ANIMES
+
+                        span.season-divider |
+
+                        .season-stat-item
+                          span.season-code Su:
+                          span.season-count {{ getAniListStat(card).summer }}
+                          .season-popover(v-if="getAniListStat(card).summerAnimes && getAniListStat(card).summerAnimes.length > 0")
+                            .season-popover-title SUMMER ({{ getAniListStat(card).summer }}):
+                            .season-popover-anime(v-for="(title, idx) in getAniListStat(card).summerAnimes" :key="idx") • {{ title }}
+                          .season-popover(v-else)
+                            .season-popover-title SUMMER: 0 ANIMES
+
+                        span.season-divider |
+
+                        .season-stat-item
+                          span.season-code F:
+                          span.season-count {{ getAniListStat(card).fall }}
+                          .season-popover(v-if="getAniListStat(card).fallAnimes && getAniListStat(card).fallAnimes.length > 0")
+                            .season-popover-title FALL ({{ getAniListStat(card).fall }}):
+                            .season-popover-anime(v-for="(title, idx) in getAniListStat(card).fallAnimes" :key="idx") • {{ title }}
+                          .season-popover(v-else)
+                            .season-popover-title FALL: 0 ANIMES
 
                   .stat-pill-container(v-if="getCardTodoList(card).length > 0")
                     span.stat-pill.todo-stat-pill(@click="showTodoListSidebar = true")
@@ -252,7 +364,48 @@ html(lang="en")
                   .stat-pill-container(v-if="shouldShowCountPill(card)")
                     span.stat-pill ⌗ {{ getAniListStat(card).total }}
                     .stat-tooltip.classic-tooltip(v-if="isClassicCard(card)")
-                      | W: {{ getAniListStat(card).winter }} | Sp: {{ getAniListStat(card).spring }} | Su: {{ getAniListStat(card).summer }} | F: {{ getAniListStat(card).fall }}
+                      .classic-seasons-grid
+                        .season-stat-item
+                          span.season-code W:
+                          span.season-count {{ getAniListStat(card).winter }}
+                          .season-popover(v-if="getAniListStat(card).winterAnimes && getAniListStat(card).winterAnimes.length > 0")
+                            .season-popover-title WINTER ({{ getAniListStat(card).winter }}):
+                            .season-popover-anime(v-for="(title, idx) in getAniListStat(card).winterAnimes" :key="idx") • {{ title }}
+                          .season-popover(v-else)
+                            .season-popover-title WINTER: 0 ANIMES
+
+                        span.season-divider |
+
+                        .season-stat-item
+                          span.season-code Sp:
+                          span.season-count {{ getAniListStat(card).spring }}
+                          .season-popover(v-if="getAniListStat(card).springAnimes && getAniListStat(card).springAnimes.length > 0")
+                            .season-popover-title SPRING ({{ getAniListStat(card).spring }}):
+                            .season-popover-anime(v-for="(title, idx) in getAniListStat(card).springAnimes" :key="idx") • {{ title }}
+                          .season-popover(v-else)
+                            .season-popover-title SPRING: 0 ANIMES
+
+                        span.season-divider |
+
+                        .season-stat-item
+                          span.season-code Su:
+                          span.season-count {{ getAniListStat(card).summer }}
+                          .season-popover(v-if="getAniListStat(card).summerAnimes && getAniListStat(card).summerAnimes.length > 0")
+                            .season-popover-title SUMMER ({{ getAniListStat(card).summer }}):
+                            .season-popover-anime(v-for="(title, idx) in getAniListStat(card).summerAnimes" :key="idx") • {{ title }}
+                          .season-popover(v-else)
+                            .season-popover-title SUMMER: 0 ANIMES
+
+                        span.season-divider |
+
+                        .season-stat-item
+                          span.season-code F:
+                          span.season-count {{ getAniListStat(card).fall }}
+                          .season-popover(v-if="getAniListStat(card).fallAnimes && getAniListStat(card).fallAnimes.length > 0")
+                            .season-popover-title FALL ({{ getAniListStat(card).fall }}):
+                            .season-popover-anime(v-for="(title, idx) in getAniListStat(card).fallAnimes" :key="idx") • {{ title }}
+                          .season-popover(v-else)
+                            .season-popover-title FALL: 0 ANIMES
 
                   .stat-pill-container(v-if="getCardTodoList(card).length > 0")
                     span.stat-pill.todo-stat-pill(@click="showTodoListSidebar = true")
@@ -316,85 +469,114 @@ html(lang="en")
       button.retro-btn.fab-btn.add-fab-btn(@click="openAddModal")
         span.fab-icon +
 
-      // TO-DO LIST SIDEBAR (Inside #app)
-      .todo-sidebar-backdrop(v-if="showTodoListSidebar" @click.self="showTodoListSidebar = false")
-        aside.todo-sidebar
-          .todo-sidebar-header
-            div
-              span.system-tag /// WATCH & READ QUEUE
-              h2.todo-sidebar-title > to-do list
-            div(style="display: flex; align-items: center; gap: 8px;")
-              button.retro-btn.btn-sm.todo-media-toggle(
-                @click="toggleTodoMediaFilter"
-                :class="'media-toggle-' + todoMediaFilter"
-                title="Switch To-Do media filter (ALL / ANIME / MANGA)"
-              ) [ {{ todoMediaFilter.toUpperCase() }} ]
-              button.retro-btn.btn-sm(@click="showTodoListSidebar = false") ✕
+      // NOTEPAD ARROW TAB (Bottom middle of screen)
+      .notepad-tab-container
+        button.notepad-tab-btn(@click="toggleNotepad" :class="{ open: showNotepadDrawer }" title="Toggle Notepad [V]")
+          span.notepad-tab-arrow {{ showNotepadDrawer ? '▼' : '▲' }}
+          span.notepad-tab-label NOTEPAD [V]
 
-          .todo-view-tabs
-            button.retro-btn.btn-sm.todo-tab-btn(
-              @click="todoViewMode = 'challenge'" 
-              :class="{ active: todoViewMode === 'challenge' }"
-            ) [ BY CHALLENGE ]
-            button.retro-btn.btn-sm.todo-tab-btn(
-              @click="todoViewMode = 'anime'" 
-              :class="{ active: todoViewMode === 'anime' }"
-            ) [ BY TITLE ]
+      // NOTEPAD DRAWER (Inside #app)
+      transition(name="notepad-drawer")
+        .notepad-drawer-backdrop(v-if="showNotepadDrawer" @click.self="showNotepadDrawer = false")
+          .notepad-drawer
+            .notepad-header
+              .notepad-title-wrap
+                span.system-tag /// TERMINAL SCRATCHPAD
+                h3.notepad-title > NOTEPAD (PRESS V TO CLOSE)
+              .notepad-actions
+                span.notepad-count {{ notepadWordCount }} words
+                button.retro-btn.btn-sm(@click="copyNotepadText" title="Copy notes to clipboard") COPY
+                button.retro-btn.btn-sm.retro-btn-danger(@click="clearNotepadText" title="Clear notes") CLEAR
+                button.retro-btn.btn-sm(@click="showNotepadDrawer = false") ✕
+            .notepad-body
+              textarea.notepad-textarea(
+                v-model="notepadContent" 
+                @input="saveNotepad" 
+                placeholder="Enter quick notes, challenge progress, AniList codes, or badge links... (Press 'V' or ✕ to close)"
+              )
+            .notepad-footer
+              span.notepad-hint > AUTO-SAVED LOCALLY • PERSISTS ACROSS SESSIONS
 
-          div(style="margin-bottom: 14px;")
-            button.retro-btn.btn-sm(@click="openAddAnimeModal(null)" style="width: 100%; border-color: var(--retro-red); color: var(--retro-red); font-weight: bold;")
-              | {{ todoMediaFilter === 'manga' ? '+ LOG MANGA TO CHALLENGE' : (todoMediaFilter === 'anime' ? '+ LOG ANIME TO CHALLENGE' : '+ LOG ITEM TO CHALLENGE') }}
+      // TO-DO LIST SIDEBAR (Inside #app with opening & closing animations)
+      transition(name="todo-drawer")
+        .todo-sidebar-backdrop(v-if="showTodoListSidebar" @click.self="showTodoListSidebar = false")
+          aside.todo-sidebar
+            .todo-sidebar-header
+              div
+                span.system-tag /// WATCH & READ QUEUE
+                h2.todo-sidebar-title > to-do list
+              div(style="display: flex; align-items: center; gap: 8px;")
+                button.retro-btn.btn-sm.todo-media-toggle(
+                  @click="toggleTodoMediaFilter"
+                  :class="'media-toggle-' + todoMediaFilter"
+                  title="Switch To-Do media filter (ALL / ANIME / MANGA)"
+                ) [ {{ todoMediaFilter.toUpperCase() }} ]
+                button.retro-btn.btn-sm(@click="showTodoListSidebar = false") ✕
 
-          .ascii-tree
-            .tree-root > to-do list ({{ todoViewMode === 'challenge' ? 'by challenge' : 'by title' }}) [{{ todoMediaFilter.toUpperCase() }}]
+            .todo-view-tabs
+              button.retro-btn.btn-sm.todo-tab-btn(
+                @click="todoViewMode = 'challenge'" 
+                :class="{ active: todoViewMode === 'challenge' }"
+              ) [ BY CHALLENGE ]
+              button.retro-btn.btn-sm.todo-tab-btn(
+                @click="todoViewMode = 'anime'" 
+                :class="{ active: todoViewMode === 'anime' }"
+              ) [ BY TITLE ]
 
-            div(v-if="groupedTodoList.length === 0 && todoList.length === 0" style="font-size: 11px; color: var(--text-muted); padding: 12px 0;")
-              | └── (no items in to-do list)
+            div(style="margin-bottom: 14px;")
+              button.retro-btn.btn-sm(@click="openAddAnimeModal(null)" style="width: 100%; border-color: var(--retro-red); color: var(--retro-red); font-weight: bold;")
+                | {{ todoMediaFilter === 'manga' ? '+ LOG MANGA TO CHALLENGE' : (todoMediaFilter === 'anime' ? '+ LOG ANIME TO CHALLENGE' : '+ LOG ITEM TO CHALLENGE') }}
 
-            div(v-else-if="groupedTodoList.length === 0" style="font-size: 11px; color: var(--text-muted); padding: 12px 0;")
-              | └── (no {{ todoMediaFilter }} items in to-do list)
+            .ascii-tree
+              .tree-root > to-do list ({{ todoViewMode === 'challenge' ? 'by challenge' : 'by title' }}) [{{ todoMediaFilter.toUpperCase() }}]
 
-            // VIEW 1: SORTED BY CHALLENGE
-            template(v-if="todoViewMode === 'challenge'")
-              .tree-challenge-node(v-for="group in groupedTodoList" :key="group.threadId")
-                .tree-challenge-head
-                  span.tree-glyph └──
-                  a.tree-challenge-name-link(:href="getChallengeLink(group.threadId)" target="_blank" rel="noopener noreferrer")
-                    span.tree-challenge-name {{ group.challengeName }}
-                  button.tree-add-inline(@click="openAddAnimeModal(group)") +
+              div(v-if="groupedTodoList.length === 0 && todoList.length === 0" style="font-size: 11px; color: var(--text-muted); padding: 12px 0;")
+                | └── (no items in to-do list)
 
-                .tree-anime-container
-                  .tree-anime-node(v-for="(item, aIdx) in group.animes" :key="item.id")
-                    span.tree-anime-glyph
-                      | {{ aIdx === group.animes.length - 1 ? '└──' : '├──' }}
+              div(v-else-if="groupedTodoList.length === 0" style="font-size: 11px; color: var(--text-muted); padding: 12px 0;")
+                | └── (no {{ todoMediaFilter }} items in to-do list)
 
-                    .tree-anime-card
-                      img.tree-anime-cover(v-if="item.coverImage" :src="item.coverImage" :alt="item.animeTitle")
-                      .tree-anime-cover-placeholder(v-else) N/A
+              // VIEW 1: SORTED BY CHALLENGE
+              template(v-if="todoViewMode === 'challenge'")
+                .tree-challenge-node(v-for="group in groupedTodoList" :key="group.threadId")
+                  .tree-challenge-head
+                    span.tree-glyph └──
+                    a.tree-challenge-name-link(:href="getChallengeLink(group.threadId)" target="_blank" rel="noopener noreferrer")
+                      span.tree-challenge-name {{ group.challengeName }}
+                    button.tree-add-inline(@click="openAddAnimeModal(group)") +
 
-                      a.tree-anime-link(:href="getAniListUrl(item)" target="_blank" rel="noopener noreferrer")
-                        .tree-anime-title {{ item.animeTitle }}
+                  .tree-anime-container
+                    .tree-anime-node(v-for="(item, aIdx) in group.animes" :key="item.id")
+                      span.tree-anime-glyph
+                        | {{ aIdx === group.animes.length - 1 ? '└──' : '├──' }}
 
-                      button.tree-del-btn(@click="removeTodoAnime(item.id)") ✕
+                      .tree-anime-card
+                        img.tree-anime-cover(v-if="item.coverImage" :src="item.coverImage" :alt="item.animeTitle")
+                        .tree-anime-cover-placeholder(v-else) N/A
 
-            // VIEW 2: GROUPED BY ANIME
-            template(v-else)
-              .tree-challenge-node(v-for="group in groupedByAnimeTodoList" :key="group.key")
-                .tree-challenge-head
-                  span.tree-glyph └──
-                  img.tree-anime-cover(v-if="group.coverImage" :src="group.coverImage" style="width: 24px; height: 32px; margin-right: 4px;")
-                  a.tree-anime-link(:href="getAniListUrl(group)" target="_blank" rel="noopener noreferrer")
-                    span.tree-challenge-name {{ group.animeTitle }}
-                  button.tree-del-btn(@click="removeAnimeEverywhere(group.animeTitle)" style="margin-left: 6px;") ✕
+                        a.tree-anime-link(:href="getAniListUrl(item)" target="_blank" rel="noopener noreferrer")
+                          .tree-anime-title {{ item.animeTitle }}
 
-                .tree-anime-container
-                  .tree-anime-node(v-for="(c, cIdx) in group.challenges" :key="c.todoId")
-                    span.tree-anime-glyph
-                      | {{ cIdx === group.challenges.length - 1 ? '└──' : '├──' }}
+                        button.tree-del-btn(@click="removeTodoAnime(item.id)") ✕
 
-                    .tree-anime-card
-                      a.tree-challenge-name-link(:href="getChallengeLink(c.threadId)" target="_blank" rel="noopener noreferrer")
-                        span.tree-anime-title(style="color: var(--text-muted) !important;") Target: {{ c.challengeName }}
+              // VIEW 2: GROUPED BY ANIME
+              template(v-else)
+                .tree-challenge-node(v-for="group in groupedByAnimeTodoList" :key="group.key")
+                  .tree-challenge-head
+                    span.tree-glyph └──
+                    img.tree-anime-cover(v-if="group.coverImage" :src="group.coverImage" style="width: 24px; height: 32px; margin-right: 4px;")
+                    a.tree-anime-link(:href="getAniListUrl(group)" target="_blank" rel="noopener noreferrer")
+                      span.tree-challenge-name {{ group.animeTitle }}
+                    button.tree-del-btn(@click="removeAnimeEverywhere(group.animeTitle)" style="margin-left: 6px;") ✕
+
+                  .tree-anime-container
+                    .tree-anime-node(v-for="(c, cIdx) in group.challenges" :key="c.todoId")
+                      span.tree-anime-glyph
+                        | {{ cIdx === group.challenges.length - 1 ? '└──' : '├──' }}
+
+                      .tree-anime-card
+                        a.tree-challenge-name-link(:href="getChallengeLink(c.threadId)" target="_blank" rel="noopener noreferrer")
+                          span.tree-anime-title(style="color: var(--text-muted) !important;") Target: {{ c.challengeName }}
 
       // MODAL: IMPORT FROM AWC PROFILE (Inside #app)
       .modal-backdrop(v-if="showAwcImportModal" @click.self="showAwcImportModal = false")
@@ -556,6 +738,7 @@ html(lang="en")
 
           form(@submit.prevent="proceedAdd")
             input.retro-input(
+              id="addCommentInput"
               v-model="newCommentInput" 
               type="text" 
               placeholder="https://anilist.co/forum/thread/4448/comment/123456" 

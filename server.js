@@ -48,11 +48,22 @@ if (mongoUri) {
   console.warn('⚠️ No MONGODB_URI or MONGO_URI specified in environment.');
 }
 
+// Fallback dataset when MongoDB is offline / disconnected
+const fallbackChallenges = [
+  { challengeId: '67067', media: 'anime', name: 'Gacha Challenge', points: 10, category: 'Gacha', type: 'single' },
+  { challengeId: '69234', media: 'anime', name: 'Anime Milestone Challenge', points: 20, category: 'Milestone', type: 'single' }
+];
+
+const fallbackBadges = [
+  { badgeId: '67067', media: 'anime', images: ['https://awc.moe/badges/67067.png'] }
+];
+
 // 1. Unified init endpoint
 app.get('/api/init-data', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
-      return res.status(503).json({ error: 'MongoDB database is not connected' });
+      console.warn('[AI Studio] MongoDB database is offline — using fallback initial data');
+      return res.json({ challenges: fallbackChallenges, badges: fallbackBadges, source: 'fallback (offline)' });
     }
     const [challenges, badges] = await Promise.all([
       Challenge.find({}).lean(),
@@ -60,8 +71,8 @@ app.get('/api/init-data', async (req, res) => {
     ]);
     return res.json({ challenges, badges, source: 'mongodb' });
   } catch (err) {
-    console.error('MongoDB /api/init-data query failed:', err.message);
-    return res.status(500).json({ error: err.message });
+    console.warn('MongoDB /api/init-data query fallback:', err.message);
+    return res.json({ challenges: fallbackChallenges, badges: fallbackBadges, source: 'fallback (offline)' });
   }
 });
 
@@ -69,26 +80,26 @@ app.get('/api/init-data', async (req, res) => {
 app.get('/api/challenges', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
-      return res.status(503).json({ error: 'MongoDB database is not connected' });
+      return res.json(fallbackChallenges);
     }
     const challenges = await Challenge.find({}).lean();
     return res.json(challenges);
   } catch (e) {
-    console.error('MongoDB /api/challenges query failed:', e.message);
-    return res.status(500).json({ error: e.message });
+    console.warn('MongoDB /api/challenges query fallback:', e.message);
+    return res.json(fallbackChallenges);
   }
 });
 
 app.get('/api/badges', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
-      return res.status(503).json({ error: 'MongoDB database is not connected' });
+      return res.json(fallbackBadges);
     }
     const badges = await Badge.find({}).lean();
     return res.json(badges);
   } catch (e) {
-    console.error('MongoDB /api/badges query failed:', e.message);
-    return res.status(500).json({ error: e.message });
+    console.warn('MongoDB /api/badges query fallback:', e.message);
+    return res.json(fallbackBadges);
   }
 });
 
@@ -97,10 +108,12 @@ app.get('/api/health', async (req, res) => {
   try {
     const isReady = mongoose.connection.readyState === 1;
     res.json({
+      status: 'ok',
       mongoReadyState: mongoose.connection.readyState,
       dbName: mongoose.connection.name || null,
-      challengesCount: isReady ? await Challenge.countDocuments() : 0,
-      badgesCount: isReady ? await Badge.countDocuments() : 0
+      challengesCount: isReady ? await Challenge.countDocuments() : fallbackChallenges.length,
+      badgesCount: isReady ? await Badge.countDocuments() : fallbackBadges.length,
+      mode: isReady ? 'mongodb' : 'in-memory-fallback'
     });
   } catch (err) {
     res.status(500).json({
@@ -110,8 +123,72 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+// AWC Profile Proxy - Avoids client-side CORS issues and accurately parses card SVG
+app.get('/api/awc-profile/:username', async (req, res) => {
+  const { username } = req.params;
+  if (!username) return res.status(400).json({ error: 'Username required' });
+  try {
+    const cardUrl = `https://awc.moe/challenger/${encodeURIComponent(username)}/card`;
+    const resp = await fetch(cardUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+    if (!resp.ok) {
+      return res.status(resp.status).json({ error: `AWC returned status ${resp.status}` });
+    }
+    const svgText = await resp.text();
+    const placeMatch = svgText.match(/class=["'][^"']*placement[^"']*["'][^>]*>\s*(#\d+)\s*<\/text>/i)
+      || svgText.match(/>\s*(#\d{1,5})\s*<\/text>/i);
+    const labelMatch = svgText.match(/class=["'][^"']*label[^"']*["'][^>]*>\s*(\d+)\s*p\s*-\s*([A-Za-z0-9\s]+?)\s*<\/text>/i);
+
+    const place = placeMatch ? placeMatch[1] : null;
+    const points = labelMatch ? `${labelMatch[1]} points` : null;
+    const rank = labelMatch ? labelMatch[2].trim() : null;
+
+    return res.json({ place, points, rank });
+  } catch (err) {
+    console.warn(`Error fetching AWC profile for ${username}:`, err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// AWC Challenger page proxy for importing badges without CORS
+app.get('/api/awc-challenger/:username', async (req, res) => {
+  const { username } = req.params;
+  if (!username) return res.status(400).json({ error: 'Username required' });
+  try {
+    const pageUrl = `https://awc.moe/challenger/${encodeURIComponent(username)}`;
+    const resp = await fetch(pageUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+    if (!resp.ok) {
+      return res.status(resp.status).json({ error: `AWC returned status ${resp.status}` });
+    }
+    const htmlText = await resp.text();
+    return res.type('text/html').send(htmlText);
+  } catch (err) {
+    console.warn(`Error fetching AWC challenger page for ${username}:`, err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/', (req, res) => {
   res.render('index');
+});
+
+// Database offline / Mongoose error handling middleware
+app.use((err, req, res, next) => {
+  if (err.name === 'MongooseError' || err.name === 'MongoNetworkError' || (err.message && err.message.includes('buffering timed out'))) {
+    console.warn('[AI Studio] Database offline — returning mock empty response');
+    if (req.method === 'GET') {
+      return res.json(req.path.endsWith('s') || req.path.endsWith('s/') ? [] : {});
+    }
+    return res.status(503).json({ error: 'Service temporarily unavailable (database offline)' });
+  }
+  next(err);
 });
 
 app.listen(PORT, '0.0.0.0', () => {

@@ -12,6 +12,7 @@ export async function fetchAniListCompleted(userName) {
             completedAt { year month day }
             media {
               id
+              title { romaji english }
               genres
               season
               duration
@@ -92,6 +93,25 @@ export async function searchAniListAnime(searchTerm) {
 
 export async function fetchAwcProfile(username) {
   if (!username) return null;
+
+  // 1. First priority: Server-side proxy to completely bypass CORS and get exact SVG attributes
+  try {
+    const srvRes = await fetch(`/api/awc-profile/${encodeURIComponent(username)}`);
+    if (srvRes.ok) {
+      const srvData = await srvRes.json();
+      if (srvData && (srvData.place || srvData.rank || srvData.points)) {
+        return {
+          place: srvData.place || null,
+          rank: srvData.rank || null,
+          points: srvData.points || null
+        };
+      }
+    }
+  } catch (e) {
+    console.warn('Server AWC proxy unavailable, trying fallback:', e);
+  }
+
+  // 2. Direct or CORS proxy fallback
   const targetUrl = `https://awc.moe/challenger/${encodeURIComponent(username)}/card`;
   const proxies = [
     targetUrl,
@@ -112,13 +132,27 @@ export async function fetchAwcProfile(username) {
 
   if (!rawHtml) return null;
 
+  // Check if SVG format
+  const svgPlaceMatch = rawHtml.match(/class=["'][^"']*placement[^"']*["'][^>]*>\s*(#\d+)\s*<\/text>/i);
+  const svgLabelMatch = rawHtml.match(/class=["'][^"']*label[^"']*["'][^>]*>\s*(\d+)\s*p\s*-\s*([A-Za-z0-9\s]+?)\s*<\/text>/i);
+  if (svgPlaceMatch || svgLabelMatch) {
+    return {
+      place: svgPlaceMatch ? svgPlaceMatch[1] : null,
+      rank: svgLabelMatch ? svgLabelMatch[2].trim() : null,
+      points: svgLabelMatch ? `${svgLabelMatch[1]} points` : null
+    };
+  }
+
   const parser = new DOMParser();
   const doc = parser.parseFromString(rawHtml, 'text/html');
   const text = doc.body ? doc.body.innerText : rawHtml;
 
-  const placeMatch = text.match(/Place\s*[:\.]*\s*(#\d+)/i) || text.match(/(#\d{1,5})/);
+  const placeMatch = text.match(/Place\s*[:\.]*\s*(#\d+)/i);
   const rankMatch = text.match(/Rank\s*[:\.]*\s*([A-Za-z]+?)(?=(?:Points|Point|\d|\.|\s|$))/i) || text.match(/Rank\s*[:\.]*\s*([A-Za-z]+)/i);
   const pointsMatch = text.match(/Points\s*[:\.]*\s*(\d+)/i);
+
+  // Guard against bogus matches like '#1' when Place was not actually found
+  if (!placeMatch && !rankMatch && !pointsMatch) return null;
 
   return {
     place: placeMatch ? placeMatch[1] : null,

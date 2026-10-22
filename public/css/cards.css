@@ -188,6 +188,99 @@
 
 .classic-tooltip {
   border-color: var(--retro-cyan);
+  padding: 4px 8px;
+}
+
+.classic-seasons-grid {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.season-divider {
+  color: var(--border);
+  user-select: none;
+}
+
+.season-stat-item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+  padding: 1px 4px;
+  border-radius: 2px;
+  transition: all 0.15s ease;
+}
+
+.season-stat-item:hover {
+  background: var(--card);
+  color: var(--retro-cyan);
+  outline: 1px dashed var(--retro-cyan);
+}
+
+.season-code {
+  font-weight: 700;
+  color: var(--retro-cyan);
+}
+
+.season-count {
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.season-popover {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--panel);
+  border: 2px solid var(--retro-cyan);
+  box-shadow: 4px 4px 0px var(--crust);
+  padding: 8px 10px;
+  min-width: 190px;
+  max-width: 280px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 300;
+  white-space: normal;
+  text-align: left;
+  border-radius: 2px;
+  pointer-events: auto;
+}
+
+.season-popover::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: var(--retro-cyan);
+}
+
+.season-stat-item:hover .season-popover {
+  display: block;
+}
+
+.season-popover-title {
+  color: var(--retro-cyan);
+  font-weight: 700;
+  font-size: 10px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px;
+  margin-bottom: 6px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.season-popover-anime {
+  font-size: 10px;
+  color: var(--text-main);
+  padding: 2px 0;
+  line-height: 1.35;
+  word-break: break-word;
 }
 
 .todo-tooltip {
