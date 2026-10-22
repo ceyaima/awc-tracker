@@ -18,8 +18,8 @@ html(lang="en")
 
     link(rel="stylesheet" href="/style.css")
 
-  body(@click="closeContextMenu" @contextmenu="onBodyContextMenu")
-    #app.app-container
+  body
+    #app.app-container(v-cloak @click="closeContextMenu" @contextmenu="onBodyContextMenu")
 
       // Database Loading State Indicator
       .retro-box(v-if="isDbLoading" style="border-color: var(--retro-cyan); color: var(--retro-cyan); font-size: 11px; margin-bottom: 8px; text-align: center; padding: 6px;")
