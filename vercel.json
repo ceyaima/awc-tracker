@@ -1,9 +1,14 @@
 {
   "version": 2,
+  "functions": {
+    "server.js": {
+      "includeFiles": "views/**"
+    }
+  },
   "rewrites": [
     {
       "source": "/((?!js/|style\\.css|favicon\\.ico).*)",
-      "destination": "/api/index.js"
+      "destination": "api/index.js"
     }
   ]
 }

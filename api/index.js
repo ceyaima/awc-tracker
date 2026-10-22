@@ -22,8 +22,8 @@ app.use(cors());
 app.use(express.json());
 
 app.set('view engine', 'pug');
-app.set('views', path.join(__dirname, 'views'));
-app.use(express.static(path.join(__dirname, 'public')));
+app.set('views', path.join(process.cwd(), 'views'));
+app.use(express.static(path.join(process.cwd(), 'public')));
 
 // Connect to MongoDB Atlas
 const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
