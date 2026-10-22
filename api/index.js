@@ -9,9 +9,6 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
 
-// Fail fast on database queries if MongoDB is not connected
-mongoose.set('bufferCommands', false);
-
 const Badge = require('../models/Badge');
 const Challenge = require('../models/Challenge');
 
@@ -25,35 +22,59 @@ app.set('view engine', 'pug');
 app.set('views', path.join(process.cwd(), 'views'));
 app.use(express.static(path.join(process.cwd(), 'public')));
 
-// Connect to MongoDB Atlas
-const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
-if (mongoUri) {
-  mongoose.connect(mongoUri, {
-    serverSelectionTimeoutMS: 5000
-  })
-    .then(async () => {
-      console.log(`✓ Connected to MongoDB! (Database: "${mongoose.connection.name}")`);
-      try {
-        const cCount = await Challenge.countDocuments();
-        const bCount = await Badge.countDocuments();
-        console.log(`[DB Status] Challenges: ${cCount}, Badges: ${bCount}`);
-      } catch (err) {
-        console.warn('Could not query counts from MongoDB:', err.message);
-      }
-    })
-    .catch(err => {
-      console.error('✗ MongoDB Connection Error:', err.message);
-    });
-} else {
-  console.warn('⚠️ No MONGODB_URI or MONGO_URI specified in environment.');
+// -------------------------------------------------------------
+// Serverless-Aware Cached MongoDB Connection
+// -------------------------------------------------------------
+let cached = global.mongoose;
+if (!cached) {
+  cached = global.mongoose = { conn: null, promise: null };
 }
 
-// 1. Unified init endpoint
-app.get('/api/init-data', async (req, res) => {
+async function connectToDatabase() {
+  if (cached.conn && mongoose.connection.readyState === 1) {
+    return cached.conn;
+  }
+
+  const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
+  if (!mongoUri) {
+    throw new Error('No MONGODB_URI or MONGO_URI specified in environment variables.');
+  }
+
+  if (!cached.promise) {
+    cached.promise = mongoose.connect(mongoUri, {
+      serverSelectionTimeoutMS: 8000,
+      bufferCommands: false, // Prevents queries from hanging indefinitely
+    }).then((m) => {
+      console.log(`✓ Connected to MongoDB! (Database: "${m.connection.name}")`);
+      return m;
+    }).catch((err) => {
+      cached.promise = null; // Reset promise on failure so subsequent requests can retry
+      throw err;
+    });
+  }
+
+  cached.conn = await cached.promise;
+  return cached.conn;
+}
+
+// Middleware: Ensures MongoDB connection is ready before handling DB routes
+const ensureDbConnected = async (req, res, next) => {
   try {
-    if (mongoose.connection.readyState !== 1) {
-      return res.status(503).json({ error: 'MongoDB database is not connected' });
-    }
+    await connectToDatabase();
+    next();
+  } catch (err) {
+    console.error('✗ MongoDB Connection Error:', err.message);
+    return res.status(503).json({ error: `MongoDB connection error: ${err.message}` });
+  }
+};
+
+// -------------------------------------------------------------
+// Database Routes (Wrapped with ensureDbConnected)
+// -------------------------------------------------------------
+
+// 1. Unified init endpoint
+app.get('/api/init-data', ensureDbConnected, async (req, res) => {
+  try {
     const [challenges, badges] = await Promise.all([
       Challenge.find({}).lean(),
       Badge.find({}).lean()
@@ -66,11 +87,8 @@ app.get('/api/init-data', async (req, res) => {
 });
 
 // 2. Separate endpoints
-app.get('/api/challenges', async (req, res) => {
+app.get('/api/challenges', ensureDbConnected, async (req, res) => {
   try {
-    if (mongoose.connection.readyState !== 1) {
-      return res.status(503).json({ error: 'MongoDB database is not connected' });
-    }
     const challenges = await Challenge.find({}).lean();
     return res.json(challenges);
   } catch (e) {
@@ -79,11 +97,8 @@ app.get('/api/challenges', async (req, res) => {
   }
 });
 
-app.get('/api/badges', async (req, res) => {
+app.get('/api/badges', ensureDbConnected, async (req, res) => {
   try {
-    if (mongoose.connection.readyState !== 1) {
-      return res.status(503).json({ error: 'MongoDB database is not connected' });
-    }
     const badges = await Badge.find({}).lean();
     return res.json(badges);
   } catch (e) {
@@ -95,22 +110,26 @@ app.get('/api/badges', async (req, res) => {
 // Diagnostic health check
 app.get('/api/health', async (req, res) => {
   try {
-    const isReady = mongoose.connection.readyState === 1;
+    await connectToDatabase();
     res.json({
+      status: 'healthy',
       mongoReadyState: mongoose.connection.readyState,
       dbName: mongoose.connection.name || null,
-      challengesCount: isReady ? await Challenge.countDocuments() : 0,
-      badgesCount: isReady ? await Badge.countDocuments() : 0
+      challengesCount: await Challenge.countDocuments(),
+      badgesCount: await Badge.countDocuments()
     });
   } catch (err) {
     res.status(500).json({
+      status: 'unhealthy',
       mongoReadyState: mongoose.connection.readyState,
       error: err.message
     });
   }
 });
 
-// AWC Profile Proxy - Avoids client-side CORS issues and accurately parses card SVG
+// -------------------------------------------------------------
+// External Proxy Routes (No DB required)
+// -------------------------------------------------------------
 app.get('/api/awc-profile/:username', async (req, res) => {
   const { username } = req.params;
   if (!username) return res.status(400).json({ error: 'Username required' });
@@ -140,7 +159,6 @@ app.get('/api/awc-profile/:username', async (req, res) => {
   }
 });
 
-// AWC Challenger page proxy for importing badges without CORS
 app.get('/api/awc-challenger/:username', async (req, res) => {
   const { username } = req.params;
   if (!username) return res.status(400).json({ error: 'Username required' });
@@ -166,10 +184,10 @@ app.get('/', (req, res) => {
   res.render('index');
 });
 
-// Database offline / Mongoose error handling middleware
+// Database offline / Mongoose error handling fallback
 app.use((err, req, res, next) => {
   if (err.name === 'MongooseError' || err.name === 'MongoNetworkError' || (err.message && err.message.includes('buffering timed out'))) {
-    console.warn('[AI Studio] Database offline — returning mock empty response');
+    console.warn('[Database] Offline — returning empty response');
     if (req.method === 'GET') {
       return res.json(req.path.endsWith('s') || req.path.endsWith('s/') ? [] : {});
     }
